@@ -1,8 +1,8 @@
 #ifndef HAL_STORAGE_EXT_H
 #define HAL_STORAGE_EXT_H
 
-#include <stdbool.h>
 #include "hal_types.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -18,7 +18,7 @@ The backend is selected at build time by the Kconfig choice `PD_HAL_BACKEND`
 
 ## Repository layout
 
-```
+```text
 /                       Monorepo root (release-please manifest mode)
 ├── firmware-main/      ESP32-S3 application (ESP-IDF v5.5.6, pinned)
 ├── firmware-coproc/    Dispense-mechanism co-processor (MCU decision deferred, Phase 3)

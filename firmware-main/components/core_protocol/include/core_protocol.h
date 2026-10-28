@@ -24,12 +24,12 @@ extern "C" {
  *   [..+2)   CRC16-CCITT-FALSE over bytes [0..5+LEN), big-endian on the wire
  */
 
-#define PD_PROTO_SOF 0xA5u
-#define PD_PROTO_VER 0x01u
-#define PD_PROTO_HEADER_LEN 5u
-#define PD_PROTO_CRC_LEN 2u
+#define PD_PROTO_SOF         0xA5u
+#define PD_PROTO_VER         0x01u
+#define PD_PROTO_HEADER_LEN  5u
+#define PD_PROTO_CRC_LEN     2u
 #define PD_PROTO_MAX_PAYLOAD 128u
-#define PD_PROTO_MAX_FRAME (PD_PROTO_HEADER_LEN + PD_PROTO_MAX_PAYLOAD + PD_PROTO_CRC_LEN)
+#define PD_PROTO_MAX_FRAME   (PD_PROTO_HEADER_LEN + PD_PROTO_MAX_PAYLOAD + PD_PROTO_CRC_LEN)
 
 typedef enum {
     PD_FRAME_DISPENSE_REQ = 0x01,

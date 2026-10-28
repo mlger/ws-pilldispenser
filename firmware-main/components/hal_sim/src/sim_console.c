@@ -12,17 +12,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "driver/uart.h"
 #include "esp_console.h"
 #include "esp_err.h"
 #include "esp_log.h"
-#include "driver/uart.h"
 
 #include "sim_console.h"
 
 static const char *TAG = "sim_cmd";
 
-static int cmd_sim(int argc, char **argv)
-{
+static int cmd_sim(int argc, char **argv) {
     if (argc < 2) {
         ESP_LOGW(TAG, "usage: sim <time|tz|touch|coproc|fb|ioexp> [args]");
         return 1;
@@ -63,7 +62,9 @@ static int cmd_sim(int argc, char **argv)
             ESP_LOGI(TAG, "SIM: coproc fault=%s", argv[3]);
             return 0;
         }
-        ESP_LOGW(TAG, "usage: sim coproc auto-ack on|off | sim coproc fault <crc|timeout|jam|empty|no-ack>");
+        ESP_LOGW(
+            TAG,
+            "usage: sim coproc auto-ack on|off | sim coproc fault <crc|timeout|jam|empty|no-ack>");
         return 1;
     }
 
@@ -81,8 +82,7 @@ static int cmd_sim(int argc, char **argv)
     return 1;
 }
 
-esp_err_t sim_console_start(void)
-{
+esp_err_t sim_console_start(void) {
     const esp_console_cmd_t sim_cmd = {
         .command = "sim",
         .help = "Simulation hooks: sim time set <ISO8601> | sim tz <TZ> | "

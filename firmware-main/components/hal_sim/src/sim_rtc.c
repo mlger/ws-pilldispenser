@@ -20,15 +20,13 @@ static const char *TAG = "sim_rtc";
  * the wall clock directly; used by tests that move time forward. */
 static int64_t s_offset_s;
 
-static time_t sim_now(void)
-{
+static time_t sim_now(void) {
     struct timespec ts;
     (void)clock_gettime(CLOCK_REALTIME, &ts);
     return (time_t)(ts.tv_sec + s_offset_s);
 }
 
-pd_hal_status_t pd_hal_rtc_get(time_t *out_epoch)
-{
+pd_hal_status_t pd_hal_rtc_get(time_t *out_epoch) {
     if (out_epoch == NULL) {
         return PD_HAL_ERR_INVALID_ARG;
     }
@@ -36,9 +34,8 @@ pd_hal_status_t pd_hal_rtc_get(time_t *out_epoch)
     return PD_HAL_OK;
 }
 
-pd_hal_status_t pd_hal_rtc_set(time_t epoch)
-{
-    struct timespec ts = { .tv_sec = epoch, .tv_nsec = 0 };
+pd_hal_status_t pd_hal_rtc_set(time_t epoch) {
+    struct timespec ts = {.tv_sec = epoch, .tv_nsec = 0};
     if (clock_settime(CLOCK_REALTIME, &ts) == 0) {
         s_offset_s = 0;
         ESP_LOGI(TAG, "SIM_RTC: set epoch=%lld", (long long)epoch);
@@ -51,8 +48,7 @@ pd_hal_status_t pd_hal_rtc_set(time_t epoch)
     return PD_HAL_OK;
 }
 
-pd_hal_status_t pd_hal_rtc_set_posix_tz(const char *posix_tz)
-{
+pd_hal_status_t pd_hal_rtc_set_posix_tz(const char *posix_tz) {
     if (posix_tz == NULL || posix_tz[0] == '\0') {
         return PD_HAL_ERR_INVALID_ARG;
     }
@@ -64,8 +60,7 @@ pd_hal_status_t pd_hal_rtc_set_posix_tz(const char *posix_tz)
     return PD_HAL_OK;
 }
 
-pd_hal_status_t pd_hal_rtc_valid(bool *out_valid)
-{
+pd_hal_status_t pd_hal_rtc_valid(bool *out_valid) {
     if (out_valid == NULL) {
         return PD_HAL_ERR_INVALID_ARG;
     }
@@ -74,15 +69,14 @@ pd_hal_status_t pd_hal_rtc_valid(bool *out_valid)
 }
 
 /* Parse "YYYY-MM-DDTHH:MM:SS" into an epoch using the active TZ. */
-bool sim_rtc_parse_iso(const char *iso, time_t *out_epoch)
-{
+bool sim_rtc_parse_iso(const char *iso, time_t *out_epoch) {
     if (iso == NULL || out_epoch == NULL) {
         return false;
     }
-    struct tm t = { 0 };
+    struct tm t = {0};
     int consumed = 0;
-    if (sscanf(iso, "%d-%d-%dT%d:%d:%d%n", &t.tm_year, &t.tm_mon, &t.tm_mday, &t.tm_hour,
-               &t.tm_min, &t.tm_sec, &consumed) < 6) {
+    if (sscanf(iso, "%d-%d-%dT%d:%d:%d%n", &t.tm_year, &t.tm_mon, &t.tm_mday, &t.tm_hour, &t.tm_min,
+               &t.tm_sec, &consumed) < 6) {
         return false;
     }
     t.tm_year -= 1900;

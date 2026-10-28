@@ -2,8 +2,7 @@
 
 #include <stddef.h>
 
-const char *pd_fsm_state_name(pd_fsm_state_t s)
-{
+const char *pd_fsm_state_name(pd_fsm_state_t s) {
     switch (s) {
     case PD_FSM_IDLE:
         return "IDLE";
@@ -22,8 +21,7 @@ const char *pd_fsm_state_name(pd_fsm_state_t s)
     }
 }
 
-const char *pd_fsm_event_name(pd_fsm_event_t e)
-{
+const char *pd_fsm_event_name(pd_fsm_event_t e) {
     switch (e) {
     case PD_EV_DOSE_DUE:
         return "DOSE_DUE";
@@ -46,16 +44,14 @@ const char *pd_fsm_event_name(pd_fsm_event_t e)
     }
 }
 
-static uint32_t begin_dose(pd_fsm_ctx_t *ctx)
-{
+static uint32_t begin_dose(pd_fsm_ctx_t *ctx) {
     ctx->state = PD_FSM_DOSE_DUE;
     ctx->attempts = 1;
     ctx->dispensed_flag = false;
     return PD_ACT_SEND_DISPENSE_REQ | PD_ACT_LOG;
 }
 
-static uint32_t retry_or_fail(pd_fsm_ctx_t *ctx)
-{
+static uint32_t retry_or_fail(pd_fsm_ctx_t *ctx) {
     if (ctx->attempts < PD_FSM_MAX_ATTEMPTS) {
         ctx->attempts++;
         ctx->state = PD_FSM_DOSE_DUE;
@@ -65,8 +61,7 @@ static uint32_t retry_or_fail(pd_fsm_ctx_t *ctx)
     return PD_ACT_ALARM | PD_ACT_LOG;
 }
 
-uint32_t pd_fsm_step(pd_fsm_ctx_t *ctx, pd_fsm_event_t ev)
-{
+uint32_t pd_fsm_step(pd_fsm_ctx_t *ctx, pd_fsm_event_t ev) {
     if (ctx == NULL) {
         return PD_ACT_NONE;
     }

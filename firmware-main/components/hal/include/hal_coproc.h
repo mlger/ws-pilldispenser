@@ -1,9 +1,9 @@
 #ifndef HAL_COPROC_H
 #define HAL_COPROC_H
 
+#include "hal_types.h"
 #include <stddef.h>
 #include <stdint.h>
-#include "hal_types.h"
 
 #ifdef __cplusplus
 extern "C" {

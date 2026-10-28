@@ -15,8 +15,7 @@
 
 static const char *TAG = "scenario";
 
-void app_main(void)
-{
+void app_main(void) {
     const esp_app_desc_t *app = esp_app_get_description();
     ESP_LOGI(TAG, "PillDispenser scenario app v%s", app->version);
 

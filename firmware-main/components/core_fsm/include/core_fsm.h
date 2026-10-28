@@ -31,23 +31,23 @@ typedef enum {
 } pd_fsm_state_t;
 
 typedef enum {
-    PD_EV_DOSE_DUE = 0,   /* scheduler fired for ctx->slot_id */
-    PD_EV_START_ACK,      /* co-processor accepted the dispense request */
-    PD_EV_COMPLETE,       /* co-processor reports pills delivered */
-    PD_EV_JAM,            /* co-processor jam event */
-    PD_EV_EMPTY,          /* hopper/slot empty event */
-    PD_EV_TIMEOUT,        /* ACK or completion timeout */
-    PD_EV_RETRY,          /* retry requested while in FAILED */
-    PD_EV_RESET,          /* operator/system reset of FAILED or FAULT */
+    PD_EV_DOSE_DUE = 0, /* scheduler fired for ctx->slot_id */
+    PD_EV_START_ACK,    /* co-processor accepted the dispense request */
+    PD_EV_COMPLETE,     /* co-processor reports pills delivered */
+    PD_EV_JAM,          /* co-processor jam event */
+    PD_EV_EMPTY,        /* hopper/slot empty event */
+    PD_EV_TIMEOUT,      /* ACK or completion timeout */
+    PD_EV_RETRY,        /* retry requested while in FAILED */
+    PD_EV_RESET,        /* operator/system reset of FAILED or FAULT */
 } pd_fsm_event_t;
 
 /* Action bitmask returned by pd_fsm_step(); the caller executes them. */
-#define PD_ACT_NONE 0u
+#define PD_ACT_NONE              0u
 #define PD_ACT_SEND_DISPENSE_REQ (1u << 0)
-#define PD_ACT_SIGNAL_USER (1u << 1)
-#define PD_ACT_MARK_JOURNAL (1u << 2)
-#define PD_ACT_ALARM (1u << 3)
-#define PD_ACT_LOG (1u << 4)
+#define PD_ACT_SIGNAL_USER       (1u << 1)
+#define PD_ACT_MARK_JOURNAL      (1u << 2)
+#define PD_ACT_ALARM             (1u << 3)
+#define PD_ACT_LOG               (1u << 4)
 
 #define PD_FSM_MAX_ATTEMPTS 3u
 

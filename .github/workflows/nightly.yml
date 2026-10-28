@@ -29,6 +29,7 @@ jobs:
       - name: Make repo safe for container git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Build dev leg on the canary toolchain
+        working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           idf.py -B build_canary \

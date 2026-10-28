@@ -104,6 +104,7 @@ jobs:
       - name: Build
         env:
           LEG: ${{ matrix.config }}
+        working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           defaults="sdkconfig.defaults;sdkconfig.defaults.esp32s3"
@@ -117,6 +118,7 @@ jobs:
       - name: Size report (JSON)
         env:
           LEG: ${{ matrix.config }}
+        working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           idf.py -B "build_$LEG" size --format json > "size_$LEG.json"
@@ -157,6 +159,7 @@ jobs:
       - name: Build base for comparison
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -164,13 +167,14 @@ jobs:
           idf.py -B build_base_dev \
             -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" build
           idf.py -B build_base_dev size --format json > size_base.json
-          cp head-artifacts/size_dev.json size_head.json 2>/dev/null || true
+          cp ../head-artifacts/size_dev.json size_head.json 2>/dev/null || true
           [ -f size_head.json ] || idf.py -B build_head_placeholder size --format json > size_head.json
       - name: Compare sizes
         env:
           ALLOW_GROWTH: ${{ contains(github.event.pull_request.labels.*.name, 'size-ok') }}
+        working-directory: firmware-main
         run: |
-          python3 tools/ci/size_diff.py --base size_base.json --head size_head.json \
+          python3 ../tools/ci/size_diff.py --base size_base.json --head size_head.json \
             $([ "$ALLOW_GROWTH" = "true" ] && echo --allow-growth) | tee size_summary.md
           cat size_summary.md >> "$GITHUB_STEP_SUMMARY"
 
@@ -220,6 +224,7 @@ jobs:
       - name: Make repo safe for container git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Generate SBOM
+        working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           python3 -m pip install esp-idf-sbom

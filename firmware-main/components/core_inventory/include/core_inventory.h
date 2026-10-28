@@ -14,7 +14,7 @@ extern "C" {
  */
 
 #define PD_INV_MAX_SLOTS 32
-#define PD_INV_NAME_MAX 24
+#define PD_INV_NAME_MAX  24
 
 typedef struct {
     uint8_t slot_id;

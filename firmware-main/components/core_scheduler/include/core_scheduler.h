@@ -29,11 +29,11 @@ typedef enum {
 } pd_sched_recurrence_t;
 
 typedef struct {
-    uint8_t id;                  /* stable slot id */
+    uint8_t id; /* stable slot id */
     pd_sched_recurrence_t recurrence;
-    uint8_t hour;                /* 0..23, local wall time */
-    uint8_t minute;              /* 0..59 */
-    uint8_t days_mask;           /* WEEKLY: bit0=Mon .. bit6=Sun; ignored otherwise */
+    uint8_t hour;      /* 0..23, local wall time */
+    uint8_t minute;    /* 0..59 */
+    uint8_t days_mask; /* WEEKLY: bit0=Mon .. bit6=Sun; ignored otherwise */
     bool enabled;
 } pd_sched_slot_t;
 

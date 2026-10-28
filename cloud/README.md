@@ -5,7 +5,7 @@ Firestore), Cloud Functions, `firestore.rules`, broker configuration.
 
 ## Planned shape
 
-```
+```text
 cloud/
 ├── bridge/         MQTT → Firestore bridge worker (device tokens, LWT)
 ├── functions/      Cloud Functions (dose events, refill logic)

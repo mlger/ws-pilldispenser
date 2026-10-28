@@ -23,9 +23,27 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+  changes:
+    name: detect deployable cloud project
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - id: filter
+        run: |
+          if [ -n "$(find cloud/functions cloud/bridge -name package.json -print -quit 2>/dev/null)" ]; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "src=false" >> "$GITHUB_OUTPUT"
+          fi
+
   staging:
     name: deploy to staging
-    if: vars.ENABLE_CLOUD_DEPLOY == 'true' && hashFiles('cloud/**/package.json') != '' && github.event_name == 'push'
+    needs: changes
+    if: vars.ENABLE_CLOUD_DEPLOY == 'true' && needs.changes.outputs.src == 'true' && github.event_name == 'push'
     environment: staging
     permissions:
       contents: read
@@ -56,7 +74,8 @@ jobs:
 
   production:
     name: deploy to production (2 approvals required)
-    if: vars.ENABLE_CLOUD_DEPLOY == 'true' && hashFiles('cloud/**/package.json') != '' && github.event_name == 'release'
+    needs: changes
+    if: vars.ENABLE_CLOUD_DEPLOY == 'true' && needs.changes.outputs.src == 'true' && github.event_name == 'release'
     environment: production
     permissions:
       contents: read

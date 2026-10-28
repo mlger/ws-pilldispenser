@@ -6,8 +6,7 @@
 
 #include "unity.h"
 
-void app_main(void)
-{
+void app_main(void) {
     printf("\n=== PillDispenser unit tests (esp32s3) ===\n");
     unity_run_menu();
 }

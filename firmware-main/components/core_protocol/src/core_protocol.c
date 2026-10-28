@@ -1,7 +1,6 @@
 #include "core_protocol.h"
 
-uint16_t pd_crc16(const uint8_t *data, size_t len)
-{
+uint16_t pd_crc16(const uint8_t *data, size_t len) {
     uint16_t crc = 0xFFFFu;
     for (size_t i = 0; i < len; i++) {
         crc ^= (uint16_t)((uint16_t)data[i] << 8);
@@ -16,8 +15,7 @@ uint16_t pd_crc16(const uint8_t *data, size_t len)
     return crc;
 }
 
-size_t pd_proto_encode(const pd_frame_t *f, uint8_t *out, size_t out_cap)
-{
+size_t pd_proto_encode(const pd_frame_t *f, uint8_t *out, size_t out_cap) {
     if (f == NULL || out == NULL) {
         return 0;
     }
@@ -44,8 +42,7 @@ size_t pd_proto_encode(const pd_frame_t *f, uint8_t *out, size_t out_cap)
     return total;
 }
 
-int pd_proto_try_decode(const uint8_t *buf, size_t len, pd_frame_t *out)
-{
+int pd_proto_try_decode(const uint8_t *buf, size_t len, pd_frame_t *out) {
     if (buf == NULL || out == NULL) {
         return -1;
     }
@@ -65,9 +62,8 @@ int pd_proto_try_decode(const uint8_t *buf, size_t len, pd_frame_t *out)
         return 0;
     }
 
-    const uint16_t want =
-        (uint16_t)(((uint16_t)buf[PD_PROTO_HEADER_LEN + plen] << 8) |
-                   (uint16_t)buf[PD_PROTO_HEADER_LEN + plen + 1]);
+    const uint16_t want = (uint16_t)(((uint16_t)buf[PD_PROTO_HEADER_LEN + plen] << 8) |
+                                     (uint16_t)buf[PD_PROTO_HEADER_LEN + plen + 1]);
     if (pd_crc16(buf, PD_PROTO_HEADER_LEN + plen) != want) {
         return -1;
     }

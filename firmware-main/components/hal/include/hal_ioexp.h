@@ -1,8 +1,8 @@
 #ifndef HAL_IOEXP_H
 #define HAL_IOEXP_H
 
-#include <stdbool.h>
 #include "hal_types.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {

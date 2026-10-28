@@ -8,8 +8,7 @@
 static pd_host_test_entry_t s_tests[PD_HOST_MAX_TESTS];
 static int s_test_count;
 
-void pd_host_register_test(const char *name, const char *suite, pd_host_test_fn fn)
-{
+void pd_host_register_test(const char *name, const char *suite, pd_host_test_fn fn) {
     if (s_test_count >= PD_HOST_MAX_TESTS) {
         fprintf(stderr, "host test registry full\n");
         return;
@@ -20,8 +19,7 @@ void pd_host_register_test(const char *name, const char *suite, pd_host_test_fn 
     s_test_count++;
 }
 
-const pd_host_test_entry_t *pd_host_tests(int *out_count)
-{
+const pd_host_test_entry_t *pd_host_tests(int *out_count) {
     if (out_count != NULL) {
         *out_count = s_test_count;
     }
@@ -29,16 +27,11 @@ const pd_host_test_entry_t *pd_host_tests(int *out_count)
 }
 
 /* Weak defaults, overridable per test file (mirrors the IDF unity runner). */
-__attribute__((weak)) void setUp(void)
-{
-}
+__attribute__((weak)) void setUp(void) {}
 
-__attribute__((weak)) void tearDown(void)
-{
-}
+__attribute__((weak)) void tearDown(void) {}
 
-int main(void)
-{
+int main(void) {
     UnityBegin(__FILE__);
 
     int count = 0;

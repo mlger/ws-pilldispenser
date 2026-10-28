@@ -39,6 +39,7 @@ jobs:
       - name: Make repo safe for container git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Build with sdkconfig.release (unsigned)
+        working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           idf.py -B build_release -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.release" build
@@ -90,6 +91,7 @@ jobs:
       - name: Make repo safe for container git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Build dev images
+        working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           idf.py -B build_dev -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" build

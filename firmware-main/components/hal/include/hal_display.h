@@ -13,7 +13,7 @@ extern "C" {
  * hal_sim:  esp_lcd_qemu_rgb virtual framebuffer (Phase 1, spike b).
  */
 
-#define PD_HAL_DISPLAY_WIDTH 800
+#define PD_HAL_DISPLAY_WIDTH  800
 #define PD_HAL_DISPLAY_HEIGHT 480
 
 pd_hal_status_t pd_hal_display_init(void);

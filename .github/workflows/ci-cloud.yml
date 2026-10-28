@@ -25,9 +25,33 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: detect npm packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - id: filter
+        run: |
+          # Cloud functions/bridge packages arrive in Phase 4; the root
+          # package.json (release-please bookkeeping) does not count.
+          found=""
+          for d in cloud/functions cloud/bridge; do
+            [ -f "$d/package.json" ] && found=1
+          done
+          if [ -n "$found" ]; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "src=false" >> "$GITHUB_OUTPUT"
+          fi
+
   functions-and-bridge:
     name: functions + bridge worker
-    if: hashFiles('cloud/**/package.json') != ''
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -49,7 +73,8 @@ jobs:
 
   firestore-rules:
     name: Firestore rules emulator tests
-    if: hashFiles('cloud/**/package.json') != ''
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

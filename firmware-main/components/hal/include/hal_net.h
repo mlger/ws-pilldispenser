@@ -1,8 +1,8 @@
 #ifndef HAL_NET_H
 #define HAL_NET_H
 
-#include <stdbool.h>
 #include "hal_types.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {

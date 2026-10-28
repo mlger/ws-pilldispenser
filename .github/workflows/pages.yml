@@ -52,6 +52,7 @@ jobs:
 
   deploy:
     name: deploy to GitHub Pages
+    needs: build-site
     if: github.event.repository.private == false
     permissions:
       pages: write

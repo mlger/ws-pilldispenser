@@ -4,8 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool day_matches(const pd_sched_slot_t *slot, const struct tm *lt)
-{
+static bool day_matches(const pd_sched_slot_t *slot, const struct tm *lt) {
     switch (slot->recurrence) {
     case PD_SCHED_ONCE:
     case PD_SCHED_DAILY:
@@ -20,8 +19,7 @@ static bool day_matches(const pd_sched_slot_t *slot, const struct tm *lt)
     }
 }
 
-int pd_sched_set_tz(const char *posix_tz)
-{
+int pd_sched_set_tz(const char *posix_tz) {
     if (posix_tz == NULL || posix_tz[0] == '\0') {
         return -1;
     }
@@ -32,15 +30,13 @@ int pd_sched_set_tz(const char *posix_tz)
     return 0;
 }
 
-static struct tm local_from_utc(time_t t)
-{
+static struct tm local_from_utc(time_t t) {
     struct tm lt;
     (void)localtime_r(&t, &lt);
     return lt;
 }
 
-time_t pd_sched_next_due(const pd_sched_slot_t *slot, time_t from)
-{
+time_t pd_sched_next_due(const pd_sched_slot_t *slot, time_t from) {
     if (slot == NULL || !slot->enabled || from < 0) {
         return (time_t)-1;
     }
@@ -73,8 +69,7 @@ time_t pd_sched_next_due(const pd_sched_slot_t *slot, time_t from)
     return (time_t)-1;
 }
 
-bool pd_sched_is_due(const pd_sched_slot_t *slot, time_t t)
-{
+bool pd_sched_is_due(const pd_sched_slot_t *slot, time_t t) {
     if (slot == NULL || !slot->enabled) {
         return false;
     }
@@ -85,8 +80,7 @@ bool pd_sched_is_due(const pd_sched_slot_t *slot, time_t t)
     return day_matches(slot, &lt);
 }
 
-void pd_sched_format_iso(time_t t, char *buf, size_t buf_len)
-{
+void pd_sched_format_iso(time_t t, char *buf, size_t buf_len) {
     if (buf == NULL || buf_len == 0) {
         return;
     }

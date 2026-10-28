@@ -2,8 +2,7 @@
 
 #include <string.h>
 
-static pd_inv_slot_t *find_slot(pd_inventory_t *inv, uint8_t slot_id)
-{
+static pd_inv_slot_t *find_slot(pd_inventory_t *inv, uint8_t slot_id) {
     for (uint8_t i = 0; i < inv->slot_count; i++) {
         if (inv->slots[i].slot_id == slot_id) {
             return &inv->slots[i];
@@ -12,8 +11,7 @@ static pd_inv_slot_t *find_slot(pd_inventory_t *inv, uint8_t slot_id)
     return NULL;
 }
 
-static const pd_inv_slot_t *find_slot_const(const pd_inventory_t *inv, uint8_t slot_id)
-{
+static const pd_inv_slot_t *find_slot_const(const pd_inventory_t *inv, uint8_t slot_id) {
     for (uint8_t i = 0; i < inv->slot_count; i++) {
         if (inv->slots[i].slot_id == slot_id) {
             return &inv->slots[i];
@@ -22,8 +20,7 @@ static const pd_inv_slot_t *find_slot_const(const pd_inventory_t *inv, uint8_t s
     return NULL;
 }
 
-bool pd_inv_init(pd_inventory_t *inv, uint8_t slot_count)
-{
+bool pd_inv_init(pd_inventory_t *inv, uint8_t slot_count) {
     if (inv == NULL || slot_count == 0 || slot_count > PD_INV_MAX_SLOTS) {
         return false;
     }
@@ -36,8 +33,7 @@ bool pd_inv_init(pd_inventory_t *inv, uint8_t slot_count)
 }
 
 bool pd_inv_load_slot(pd_inventory_t *inv, uint8_t slot_id, uint16_t capacity, uint16_t count,
-                      const char *pill_name)
-{
+                      const char *pill_name) {
     if (inv == NULL || count > capacity) {
         return false;
     }
@@ -56,8 +52,7 @@ bool pd_inv_load_slot(pd_inventory_t *inv, uint8_t slot_id, uint16_t capacity, u
     return true;
 }
 
-bool pd_inv_take(pd_inventory_t *inv, uint8_t slot_id, uint8_t pills)
-{
+bool pd_inv_take(pd_inventory_t *inv, uint8_t slot_id, uint8_t pills) {
     if (inv == NULL || pills == 0) {
         return false;
     }
@@ -69,8 +64,7 @@ bool pd_inv_take(pd_inventory_t *inv, uint8_t slot_id, uint8_t pills)
     return true;
 }
 
-uint16_t pd_inv_remaining(const pd_inventory_t *inv, uint8_t slot_id)
-{
+uint16_t pd_inv_remaining(const pd_inventory_t *inv, uint8_t slot_id) {
     if (inv == NULL) {
         return 0;
     }
@@ -79,8 +73,7 @@ uint16_t pd_inv_remaining(const pd_inventory_t *inv, uint8_t slot_id)
 }
 
 uint8_t pd_inv_low_slots(const pd_inventory_t *inv, uint16_t threshold, uint8_t *out,
-                         uint8_t out_cap)
-{
+                         uint8_t out_cap) {
     if (inv == NULL || out == NULL) {
         return 0;
     }

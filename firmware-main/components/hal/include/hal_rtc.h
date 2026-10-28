@@ -1,9 +1,9 @@
 #ifndef HAL_RTC_H
 #define HAL_RTC_H
 
+#include "hal_types.h"
 #include <stddef.h>
 #include <time.h>
-#include "hal_types.h"
 
 #ifdef __cplusplus
 extern "C" {

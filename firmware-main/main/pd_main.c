@@ -16,8 +16,7 @@
  */
 static const char *TAG = "pd_main";
 
-void app_main(void)
-{
+void app_main(void) {
     const esp_app_desc_t *app = esp_app_get_description();
     ESP_LOGI(TAG, "PillDispenser main v%s (idf %s)", app->version, esp_get_idf_version());
 
