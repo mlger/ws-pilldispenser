@@ -63,17 +63,36 @@ VERIFY: Phase 0.5 spike (a) must confirm octal PSRAM emulation on the esp32s3 ma
 
 Install the pinned Python dependencies first: `pip install -r firmware-main/test/requirements.txt` (pytest-embedded `==2.9.3` family, Python >= 3.10).
 
+pytest-embedded 2.x shells out to `esptool.py merge-bin` (esptool v5 CLI) to
+build the flash image; the IDF environment ships esptool 4.x, so upgrade the
+pip esptool first: `pip install -U esptool`. The test apps must also be built
+before running the suite (pytest-embedded does not build them).
+
 ```bash
+# 1. Build the test apps (per-leg sdkconfig, mirrors CI)
+(cd firmware-main/test/apps/unit     && idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+   -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ci.qemu" build)
+(cd firmware-main/test/apps/scenario && idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+   -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ci.qemu" build)
+
+# 2. Run the suites (--build-dir is resolved relative to --app-path)
+pytest firmware-main/test -m qemu \
+  --embedded-services idf,qemu --target esp32s3 \
+  --app-path firmware-main/test/apps/unit --build-dir build_qemu \
+  --junitxml=reports/qemu-unit.xml
 pytest firmware-main/test -m qemu \
   --embedded-services idf,qemu --target esp32s3 \
   --app-path firmware-main/test/apps/scenario --build-dir build_qemu \
-  --qemu-prog-path qemu-system-xtensa \
-  --qemu-cli-args="-nographic -machine esp32s3" \
   --qemu-extra-args="-nic user,model=open_eth" \
-  --junitxml=reports/qemu.xml
+  --junitxml=reports/qemu-scenario.xml
 ```
 
-Example from `firmware-main/test/pytest_scenarios_qemu.py`:
+NOTE: do not keep a persistent `firmware-main/sdkconfig` between leg builds —
+an existing project sdkconfig overrides `SDKCONFIG_DEFAULTS` and silently
+rebuilds a leg with the previous configuration. CI never hits this (fresh
+checkout); pass `-DSDKCONFIG=build_<leg>/sdkconfig` locally (as above).
+
+Example from `firmware-main/test/test_scenarios_qemu.py`:
 
 ```python
 import pytest
@@ -102,8 +121,8 @@ def test_dose_due_across_eu_dst(dut: IdfDut) -> None:
 
 | Suite | Scope | Introduced |
 | --- | --- | --- |
-| unit | every component's Unity TEST_CASEs (scheduler, fsm, storage, comms, ota, coproc_link codec) driven through the test menu (`pytest_unit_qemu.py`) | Phase 0.5 skeleton; required from Phase 2 |
-| scenarios | dose due/missed/snoozed, double-dose guard, jam/empty from sim_coproc, power-loss mid-dispense (kill QEMU, restart with the same `qemu_flash.bin`, verify NVS journal replay), offline queue flush when the broker returns, DST spring/fall for EU and US timezones, leap day (`pytest_scenarios_qemu.py`) | Phase 2 (coproc faults complete in Phase 3) |
+| unit | every component's Unity TEST_CASEs (scheduler, fsm, storage, comms, ota, coproc_link codec) driven through the test menu (`test_unit_qemu.py`) | Phase 0.5 skeleton; required from Phase 2 |
+| scenarios | dose due/missed/snoozed, double-dose guard, jam/empty from sim_coproc, power-loss mid-dispense (kill QEMU, restart with the same `qemu_flash.bin`, verify NVS journal replay), offline queue flush when the broker returns, DST spring/fall for EU and US timezones, leap day (`test_scenarios_qemu.py`) | Phase 2 (coproc faults complete in Phase 3) |
 | mqtt | mosquitto on the runner with the test CA; firmware connects to `10.0.2.2:8883`; verifies TLS, LWT, retained state, reconnect backoff | Phase 4 |
 | ui | boots headless in CI; `sim fb dump` writes a PNG; tolerance-based golden image diff for each main screen | harness in Phase 0.5 (spike b); grows as screens land |
 | ota | host HTTP server serves the v+1 image; device updates, reboots, self-test fails on purpose, bootloader rolls back and the test expects the previous version marker; second case: self-test passes and `esp_ota_mark_app_valid_cancel_rollback` is called (`pytest_ota_rollback_qemu.py`) | mechanism in Phase 0.5 (spike d); suite required in Phase 6 |

@@ -1,6 +1,10 @@
 # QEMU leg (spec A3). Layered after sdkconfig.defaults.esp32s3.
 #   16 MB flash, no PSRAM, console UART0, OpenCores Ethernet for MQTT tests.
 CONFIG_PD_HAL_SIM=y
+# Console stays on UART0 under QEMU: USB-Serial-JTAG is a stub and would
+# boot silent (pytest-embedded reads the UART0 console).
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_NUM=0
 CONFIG_PD_SIM_CONSOLE=y
 CONFIG_PD_TEST_HOOKS=y
 CONFIG_ETH_USE_OPENETH=y

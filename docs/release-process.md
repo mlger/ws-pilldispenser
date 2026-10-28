@@ -108,7 +108,7 @@ encryption. Production-hardened images are never published to the web flasher.
 - **Self-test and rollback**: the new app slot must pass its self-test and
   then call `esp_ota_mark_app_valid_cancel_rollback()`; if the device reboots
   before that, the bootloader rolls back to the previous slot automatically.
-  Both paths are covered by `pytest_ota_rollback_qemu.py` and re-verified on
+  Both paths are covered by `test_ota_rollback_qemu.py` and re-verified on
   HIL before a tag is cut.
 - **Key loss warning**: a lost signing key means no further OTA for hardened
   devices (secure boot v2 rejects anything not signed by the burned key

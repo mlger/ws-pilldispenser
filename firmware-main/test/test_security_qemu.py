@@ -18,7 +18,6 @@ except ImportError:  # pragma: no cover - older plugin layouts
 @pytest.mark.qemu
 @pytest.mark.skip(reason='Phase 6: requires flash-encryption fixture images')
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_flash_encryption_dev_boot(dut: IdfDut) -> None:
     """Boot an encrypted image with a TEST-ONLY emulated eFuse key."""
 
@@ -26,6 +25,5 @@ def test_flash_encryption_dev_boot(dut: IdfDut) -> None:
 @pytest.mark.qemu
 @pytest.mark.xfail(reason='Secure boot v2 on esp32s3 QEMU unproven (spec D1)')
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_secure_boot_v2_boot(dut: IdfDut) -> None:
     """Signed boot under emulated eFuses."""

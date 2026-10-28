@@ -15,7 +15,6 @@ except ImportError:  # pragma: no cover - older plugin layouts
 
 @pytest.mark.qemu
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_unity_components(dut: IdfDut) -> None:
     """Run every component TEST_CASE through the unity test menu."""
     dut.run_all_single_board_cases(timeout=120)

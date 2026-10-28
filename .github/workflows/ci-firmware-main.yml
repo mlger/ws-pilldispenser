@@ -61,7 +61,8 @@ jobs:
             firmware-main/components/core_inventory \
             firmware-main/components/pd_hal \
             firmware-main/components/hal_real \
-            firmware-main/components/hal_sim
+            firmware-main/components/hal_sim \
+            firmware-main/components/drivers
       - name: eFuse policy (no real burns, spec G3)
         run: tools/ci/check_no_efuse_burn.sh
       - name: Release sdkconfig sanity (spec G3)
@@ -196,14 +197,40 @@ jobs:
           . "$IDF_PATH/export.sh"
           python "$IDF_PATH/tools/idf_tools.py" install qemu-xtensa
       - name: Install pytest-embedded (pinned)
-        run: python3 -m pip install -r firmware-main/test/requirements.txt
-      - name: Run QEMU suite
+        run: |
+          python3 -m pip install -r firmware-main/test/requirements.txt
+          # pytest-embedded 2.x shells out to `esptool.py merge-bin` (v5 CLI);
+          # the IDF image ships esptool 4.x, which would fail the image build.
+          python3 -m pip install -U esptool
+      - name: Build unit test app
+        working-directory: firmware-main/test/apps/unit
         run: |
           . "$IDF_PATH/export.sh"
-          mkdir -p reports
-          pytest firmware-main/test -m qemu \
+          idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ci.qemu" build
+      - name: Build scenario test app
+        working-directory: firmware-main/test/apps/scenario
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ci.qemu" build
+      - name: Run QEMU suite (unit app)
+        working-directory: firmware-main
+        run: |
+          . "$IDF_PATH/export.sh"
+          mkdir -p ../reports
+          pytest test -m qemu \
             --embedded-services idf,qemu --target esp32s3 \
-            --junitxml=reports/qemu.xml -v
+            --app-path test/apps/unit --build-dir build_qemu \
+            --junitxml=../reports/qemu-unit.xml -v
+      - name: Run QEMU suite (scenario app)
+        working-directory: firmware-main
+        run: |
+          . "$IDF_PATH/export.sh"
+          pytest test -m qemu \
+            --embedded-services idf,qemu --target esp32s3 \
+            --app-path test/apps/scenario --build-dir build_qemu \
+            --junitxml=../reports/qemu-scenario.xml -v
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

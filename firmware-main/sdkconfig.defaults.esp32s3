@@ -8,7 +8,9 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
-# Console on UART0 (the board's UART Type-C port) — never USB-Serial-JTAG,
-# which is a stub under QEMU and would boot silent.
-CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-CONFIG_ESP_CONSOLE_UART_NUM=0
+# Console on the native USB Type-C (USB-Serial-JTAG, GPIO19/20): the board
+# has no USB-UART bridge and GPIO43/44 belong to the RS485 transceiver
+# (verified against the Waveshare demo + wiki, Phase 1). The QEMU leg
+# overrides this to UART0 in sdkconfig.qemu — USB-Serial-JTAG is a QEMU stub
+# and would boot silent there.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

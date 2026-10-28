@@ -71,7 +71,7 @@ Flashing the real board and the browser flasher are covered in
 | --- | --- | --- |
 | 0 | Design docs (this `docs/` set) | done |
 | 0.5 | Repo scaffolding, CI green, host tests, QEMU smoke, placeholder flasher | **this drop** |
-| 1 | Board bring-up (`hal_real` + drivers) + HIL runner | pending |
+| 1 | Board bring-up (`hal_real` + drivers) + HAL contract tests | **this drop** (HIL runner lands with the bench) |
 | 2 | Scheduler + FSM + offline storage | pending |
 | 3 | Co-processor + mechanism | pending |
 | 4 | Cloud (rules, bridge, MQTT) | pending |
