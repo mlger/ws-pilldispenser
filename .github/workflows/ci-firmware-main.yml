@@ -224,12 +224,14 @@ jobs:
           . "$IDF_PATH/export.sh"
           idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
             -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ci.qemu" build
+      # Each invocation must pin its test files: pytest collects every file
+      # under test/, and the two apps satisfy different halves of the suite.
       - name: Run QEMU suite (unit app)
         working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
           mkdir -p ../reports
-          pytest test -m qemu \
+          pytest test/test_unit_qemu.py -m qemu \
             --embedded-services idf,qemu --target esp32s3 \
             --app-path test/apps/unit --build-dir build_qemu \
             --junitxml=../reports/qemu-unit.xml -v
@@ -237,7 +239,8 @@ jobs:
         working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
-          pytest test -m qemu \
+          pytest test/test_scenarios_qemu.py test/test_security_qemu.py \
+                 test/test_ota_rollback_qemu.py -m qemu \
             --embedded-services idf,qemu --target esp32s3 \
             --app-path test/apps/scenario --build-dir build_qemu \
             --junitxml=../reports/qemu-scenario.xml -v
