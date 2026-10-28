@@ -8,7 +8,8 @@ endif()
 if(CONFIG_PD_HAL_SIM)
     idf_component_register(SRCS "${SIM_SRCS}"
                            INCLUDE_DIRS "include"
-                           REQUIRES hal log esp_console driver)
+                           # `console` = esp_console in IDF v5.5.x naming.
+                           REQUIRES hal log console driver)
 else()
     idf_component_register()
 endif()

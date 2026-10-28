@@ -203,3 +203,16 @@ by a phase and must be resolved (and this table updated) before that phase exits
 | 7 | RP2040 BOOTSEL drag-drop flashing procedure to be confirmed against Raspberry Pi official docs | `web-flasher.md` | Phase 3 |
 | 8 | QEMU flash mode: sdkconfig.qemu uses DIO as a precaution; verify QIO works under QEMU — Phase 0.5 spike (a) | `qemu-testing.md` | Phase 0.5 |
 | 9 | ESP32-S3 secure boot v2 key revocation slot budget must be confirmed before planning key rotation for hardened devices | `security-keys.md` | Phase 7 |
+
+## 12. Phase 0.5 environment decisions (post-first-CI)
+
+Recorded during the first CI bring-up on the real repository; these are facts
+verified against the live environment, not assumptions.
+
+| # | Decision / finding | Rationale |
+| --- | --- | --- |
+| D1 | "Allow GitHub Actions to create and approve pull requests" is ENABLED at repository level (deviation from spec G4) | release-please uses the plain GITHUB_TOKEN; no GitHub App is provisioned yet. Default workflow token stays read-only (default_workflow_permissions=read); revisit with a GitHub App token in Phase 7 hardening. |
+| D2 | The console component is named `console` in ESP-IDF v5.5.6 (`esp_console` is the IDF v6 name) | First CI round failed to resolve `esp_console`; verified against the v5.5.6 component tree. The nightly canary leg (v6.1-rc1) will surface the rename. |
+| D3 | `hashFiles()` in job-level `if:` produced workflow-level failures (zero jobs created) on this repository | Replaced with a two-phase `changes` detection job pattern in ci-coproc/ci-android/ci-cloud/deploy-cloud. |
+| D4 | Secret scanning / push protection / private vulnerability reporting API endpoints returned 404 on this repository | Enable manually under Settings -> Code security and analysis; Dependabot alerts and automated security fixes are ON. |
+| D5 | The repository was provisioned as `ws-pilldispenser` (public) using the fine-grained PAT's select-repository scope | A `pill-dispenser` private repo was created inadvertently during target discovery and can be deleted manually (the token has no admin scope over it). |
