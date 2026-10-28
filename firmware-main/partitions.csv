@@ -1,9 +1,12 @@
 # Name,     Type, SubType,  Offset,   Size,     Flags
 # 16 MB flash layout for the PillDispenser main unit.
-nvs,        data, nvs,      0x9000,   0x4000,
-otadata,    data, ota,      0xd000,   0x2000,
-phy_init,   data, phy,      0xf000,   0x1000,
-ota_0,      app,  ota_0,    0x10000,  0x640000,
-ota_1,      app,  ota_1,    0x650000, 0x640000,
-littlefs,   data, spiffs,   0xc90000, 0x360000,
+# Partition table lives at 0x10000 (CONFIG_PARTITION_TABLE_OFFSET=0x10000 in
+# sdkconfig.defaults): secure boot v2 inflates the bootloader to ~0x9000 bytes,
+# which no longer fits below a table at 0x8000 (spec A3 / release legs).
+nvs,        data, nvs,      0x11000,  0x4000,
+otadata,    data, ota,      0x15000,  0x2000,
+phy_init,   data, phy,      0x17000,  0x1000,
+ota_0,      app,  ota_0,    0x20000,  0x630000,
+ota_1,      app,  ota_1,    0x650000, 0x630000,
+littlefs,   data, spiffs,   0xc80000, 0x370000,
 coredump,   data, coredump, 0xff0000, 0x10000,
