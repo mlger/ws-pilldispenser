@@ -272,9 +272,9 @@ jobs:
         run: |
           . "$IDF_PATH/export.sh"
           python -m pip install esp-idf-sbom
-          # esp-idf-sbom 1.5.x: the idf.py action takes --file (not -o) and
-          # requires a completed build (dependencies: [app]).
-          idf.py -B build_dev sbom-create --file pd-main.spdx
+          # Call the tool directly: the idf.py extension CLI differs across
+          # esp-idf-sbom/IDF combos (-o vs --file); `create -o` is stable.
+          python -m esp_idf_sbom create -o pd-main.spdx build_dev/project_description.json
       - name: Upload SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
