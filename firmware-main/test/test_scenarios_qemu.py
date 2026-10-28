@@ -16,7 +16,6 @@ except ImportError:  # pragma: no cover - older plugin layouts
 
 @pytest.mark.qemu
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_boot_smoke(dut: IdfDut) -> None:
     """Scenario app boots and reports the deterministic ready marker."""
     dut.expect_exact('PD_READY', timeout=60)
@@ -25,7 +24,6 @@ def test_boot_smoke(dut: IdfDut) -> None:
 @pytest.mark.qemu
 @pytest.mark.skip(reason='Phase 2: requires core_scheduler wiring into the scenario app')
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_dose_due_across_eu_dst(dut: IdfDut) -> None:
     """EU DST spring-forward: dose due survives the 02:00 -> 03:00 jump."""
     dut.expect_exact('PD_READY', timeout=60)
@@ -40,7 +38,6 @@ def test_dose_due_across_eu_dst(dut: IdfDut) -> None:
 @pytest.mark.qemu
 @pytest.mark.skip(reason='Phase 2: requires NVS/LittleFS dose journal')
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_power_loss_mid_dispense_replays_journal(dut: IdfDut) -> None:
     """Kill QEMU mid-dispense, restart on the same flash image, verify the NVS
     journal replays and no double dose is dispensed (FMEA-04)."""
@@ -49,7 +46,6 @@ def test_power_loss_mid_dispense_replays_journal(dut: IdfDut) -> None:
 @pytest.mark.qemu
 @pytest.mark.skip(reason='Phase 4: requires sim_net (open_eth) + mosquitto fixture')
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_offline_queue_flushes_when_broker_returns(dut: IdfDut) -> None:
     """Events queued while the broker is down are published in order on
     reconnect (docs/test-plan.md mqtt suite)."""

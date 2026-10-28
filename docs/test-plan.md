@@ -10,11 +10,11 @@ The same application code runs in three places with no `#ifdefs`: the host (pure
 | --- | --- | --- | --- |
 | unit | Component Unity TEST_CASEs (scheduler, fsm, protocol codec, inventory, storage, comms, ota, coproc_link) | host (CTest) AND QEMU | CTest labels on host; `pytest -m qemu` against `test/apps/unit` |
 | scenario | Full firmware built with `PD_HAL_SIM`, sim drivers and fault injection | QEMU | `pytest -m qemu` against `test/apps/scenario` |
-| contract | Every HAL interface run against SIM (QEMU) and REAL (HIL) so the two backends cannot drift | QEMU + HIL | `pytest -m qemu` (SIM half), `pytest -m hil` (REAL half) |
+| contract | Every HAL interface run against SIM (QEMU) and REAL (HIL) so the two backends cannot drift — `components/pd_hal/test/test_hal_contract.c`, linked into the unit app with both backends required so exactly the selected one links | QEMU + HIL | `pytest -m qemu` (SIM half), `pytest -m hil` (REAL half) |
 | ui | LVGL renders and flows; framebuffer dumped to PNG, diffed against golden images (tolerance-based) | QEMU (headless in CI, `--graphics` locally) | `pytest -m qemu` |
-| ota | OTA download, reboot, self-test fail leads to rollback; self-test pass marks the app valid | QEMU with a local HTTP server | `pytest -m qemu` (`pytest_ota_rollback_qemu.py`) |
-| security | Flash encryption dev-mode boot on emulated eFuses; secure boot v2 case stays xfail | QEMU only, emulated eFuses | `pytest -m qemu` (`pytest_security_qemu.py`) |
-| hil | Real hardware: GT911 touch, I2C parts, RS485 link, Wi-Fi/BLE provisioning, TF card, RGB timing | Nightly on the self-hosted runner `hil-4.3b` | `pytest -m hil` (`pytest_hil.py`) |
+| ota | OTA download, reboot, self-test fail leads to rollback; self-test pass marks the app valid | QEMU with a local HTTP server | `pytest -m qemu` (`test_ota_rollback_qemu.py`) |
+| security | Flash encryption dev-mode boot on emulated eFuses; secure boot v2 case stays xfail | QEMU only, emulated eFuses | `pytest -m qemu` (`test_security_qemu.py`) |
+| hil | Real hardware: GT911 touch, I2C parts, RS485 link, Wi-Fi/BLE provisioning, TF card, RGB timing | Nightly on the self-hosted runner `hil-4.3b` | `pytest -m hil` (`test_hil.py`) |
 
 All pytest suites live in `firmware-main/test/` (`conftest.py` plus one `pytest_*` module per area and `fixtures/`); requirements are pinned to pytest-embedded `==2.9.3` (Python >= 3.10). Host tests live in `firmware-main/host_test/` (CMake + CTest with ASan/UBSan via `-DSANITIZE=ON`).
 

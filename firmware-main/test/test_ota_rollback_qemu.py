@@ -20,7 +20,6 @@ except ImportError:  # pragma: no cover - older plugin layouts
 @pytest.mark.qemu
 @pytest.mark.skip(reason='Phase 6: requires the OTA component and ota_0/ota_1 layout in the test app')
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_ota_rollback_on_failed_selftest(dut: IdfDut) -> None:
     """Rollback path: invalid self-test reverts to the previous OTA slot."""
 
@@ -28,6 +27,5 @@ def test_ota_rollback_on_failed_selftest(dut: IdfDut) -> None:
 @pytest.mark.qemu
 @pytest.mark.skip(reason='Phase 6: requires the OTA component')
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['qemu'], indirect=True)
 def test_ota_valid_selftest_confirms_image(dut: IdfDut) -> None:
     """Happy path: valid self-test cancels the pending rollback."""

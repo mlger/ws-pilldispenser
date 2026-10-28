@@ -17,7 +17,6 @@ except ImportError:  # pragma: no cover - older plugin layouts
 
 @pytest.mark.hil
 @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
-@pytest.mark.parametrize('config', ['dev'], indirect=True)
 def test_hil_boot_smoke(dut: IdfDut) -> None:
     """Real board boots and reports the deterministic ready marker."""
     dut.expect_exact('PD_READY', timeout=60)

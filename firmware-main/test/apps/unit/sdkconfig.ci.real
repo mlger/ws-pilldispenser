@@ -1,0 +1,10 @@
+# HIL leg config: same unit app against REAL Waveshare 4.3B hardware
+# (self-hosted hil-4.3b runner, spec C10/D6). Contract tests exercise the
+# real GT911/CH422G/PCF85063 I2C devices; interfaces without a mechanism
+# attached keep their not-implemented contract status.
+CONFIG_PD_HAL_REAL=y
+CONFIG_PD_SIM_CONSOLE=n
+CONFIG_PD_TEST_HOOKS=y
+# Console on the board's native USB Type-C (USB-Serial-JTAG, GPIO19/20):
+# GPIO43/44 belong to the RS485 transceiver (see components/hal_real).
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

@@ -59,9 +59,10 @@ jobs:
             firmware-main/components/core_scheduler \
             firmware-main/components/core_fsm \
             firmware-main/components/core_inventory \
-            firmware-main/components/hal \
+            firmware-main/components/pd_hal \
             firmware-main/components/hal_real \
-            firmware-main/components/hal_sim
+            firmware-main/components/hal_sim \
+            firmware-main/components/drivers
       - name: eFuse policy (no real burns, spec G3)
         run: tools/ci/check_no_efuse_burn.sh
       - name: Release sdkconfig sanity (spec G3)
@@ -164,12 +165,21 @@ jobs:
           . "$IDF_PATH/export.sh"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git checkout -q "$BASE_SHA"
-          idf.py -B build_base_dev \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" build
-          idf.py -B build_base_dev size --format json > size_base.json
+          # A base that does not build (e.g. during the bootstrap PR itself)
+          # skips the comparison with a warning instead of failing the PR.
+          if idf.py -B build_base_dev \
+            -DSDKCONFIG=build_base_dev/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" \
+            build; then
+            idf.py -B build_base_dev size --format json > size_base.json
+          else
+            echo "BASE_NOT_BUILDABLE=true" >> "$GITHUB_ENV"
+            echo "::warning::base commit does not build; size comparison skipped"
+          fi
           cp ../head-artifacts/size_dev.json size_head.json 2>/dev/null || true
           [ -f size_head.json ] || idf.py -B build_head_placeholder size --format json > size_head.json
       - name: Compare sizes
+        if: env.BASE_NOT_BUILDABLE != 'true'
         env:
           ALLOW_GROWTH: ${{ contains(github.event.pull_request.labels.*.name, 'size-ok') }}
         working-directory: firmware-main
@@ -196,14 +206,44 @@ jobs:
           . "$IDF_PATH/export.sh"
           python "$IDF_PATH/tools/idf_tools.py" install qemu-xtensa
       - name: Install pytest-embedded (pinned)
-        run: python3 -m pip install -r firmware-main/test/requirements.txt
-      - name: Run QEMU suite
         run: |
           . "$IDF_PATH/export.sh"
-          mkdir -p reports
-          pytest firmware-main/test -m qemu \
+          # pytest-embedded 2.x shells out to `esptool.py merge-bin` (v5 CLI);
+          # the IDF image ships esptool 4.x, which would fail the image build.
+          python -m pip install -r firmware-main/test/requirements.txt
+          python -m pip install -U esptool
+      - name: Build unit test app
+        working-directory: firmware-main/test/apps/unit
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ci.qemu" build
+      - name: Build scenario test app
+        working-directory: firmware-main/test/apps/scenario
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.ci.qemu" build
+      # Each invocation must pin its test files: pytest collects every file
+      # under test/, and the two apps satisfy different halves of the suite.
+      - name: Run QEMU suite (unit app)
+        working-directory: firmware-main
+        run: |
+          . "$IDF_PATH/export.sh"
+          mkdir -p ../reports
+          pytest test/test_unit_qemu.py -m qemu \
             --embedded-services idf,qemu --target esp32s3 \
-            --junitxml=reports/qemu.xml -v
+            --app-path test/apps/unit --build-dir build_qemu \
+            --junitxml=../reports/qemu-unit.xml -v
+      - name: Run QEMU suite (scenario app)
+        working-directory: firmware-main
+        run: |
+          . "$IDF_PATH/export.sh"
+          pytest test/test_scenarios_qemu.py test/test_security_qemu.py \
+                 test/test_ota_rollback_qemu.py -m qemu \
+            --embedded-services idf,qemu --target esp32s3 \
+            --app-path test/apps/scenario --build-dir build_qemu \
+            --junitxml=../reports/qemu-scenario.xml -v
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -223,16 +263,21 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Make repo safe for container git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build dev app
+        working-directory: firmware-main
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_dev -DSDKCONFIG=build_dev/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" \
+            build
       - name: Generate SBOM
         working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
-          python3 -m pip install esp-idf-sbom
-          # VERIFY: confirm the `sbom-create` command name in the pinned esp-idf-sbom
-          # version; the extension also registers `idf.py sbom` aliases in some versions.
-          idf.py -B build_dev \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" \
-            sbom-create -o pd-main.spdx
+          python -m pip install esp-idf-sbom
+          # Call the tool directly: the idf.py extension CLI differs across
+          # esp-idf-sbom/IDF combos (-o vs --file); `create -o` is stable.
+          python -m esp_idf_sbom create -o pd-main.spdx build_dev/project_description.json
       - name: Upload SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
