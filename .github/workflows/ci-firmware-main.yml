@@ -1,0 +1,236 @@
+# ci-firmware-main — firmware lint, host tests, 3-leg build matrix, size
+# report, QEMU test suite and SBOM.
+#
+# Acceptance criteria (spec C1): a PR touching firmware-main cannot merge
+# unless lint, host-tests, build (all legs), size-report and qemu-tests pass.
+#
+# Global rules (spec C0): top-level permissions closed, SHA-pinned actions,
+# job-level timeouts, concurrency with cancel-in-progress for PRs only,
+# ESP-IDF pinned to an exact tag, ccache enabled.
+name: ci-firmware-main
+
+on:
+  pull_request:
+    paths:
+      - 'firmware-main/**'
+      - 'tools/**'
+      - '.github/workflows/ci-firmware-main.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'firmware-main/**'
+      - 'tools/**'
+      - '.github/workflows/ci-firmware-main.yml'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IDF_VERSION: v5.5.6
+  IDF_CCACHE_ENABLE: '1'
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+jobs:
+  lint:
+    name: lint (clang-format, cppcheck, eFuse policy)
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Install lint tools
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends cppcheck clang-format
+      - name: clang-format (dry run)
+        run: |
+          clang-format --version
+          files="$(git ls-files 'firmware-main/**/*.c' 'firmware-main/**/*.h' | grep -v 'host_test/unity/' || true)"
+          [ -n "$files" ] && clang-format --dry-run -Werror $files
+      - name: cppcheck (core components + HAL)
+        run: |
+          cppcheck --std=c11 --enable=warning --error-exitcode=2 \
+            --suppress=missingIncludeSystem --inline-suppr \
+            firmware-main/components/core_protocol \
+            firmware-main/components/core_scheduler \
+            firmware-main/components/core_fsm \
+            firmware-main/components/core_inventory \
+            firmware-main/components/hal \
+            firmware-main/components/hal_real \
+            firmware-main/components/hal_sim
+      - name: eFuse policy (no real burns, spec G3)
+        run: tools/ci/check_no_efuse_burn.sh
+      - name: Release sdkconfig sanity (spec G3)
+        run: python3 tools/ci/check_release_sdkconfig.py
+
+  host-tests:
+    name: host tests (ctest, ASan/UBSan)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Configure
+        run: cmake -S firmware-main/host_test -B build-host -DSANITIZE=ON
+      - name: Build
+        run: cmake --build build-host -j
+      - name: Test
+        run: ctest --test-dir build-host --output-on-failure
+
+  build:
+    name: build (${{ matrix.config }})
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [dev, qemu, release-unsigned]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Restore ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-firmware-main-${{ matrix.config }}-${{ env.IDF_VERSION }}-${{ hashFiles('firmware-main/sdkconfig*') }}
+          restore-keys: ccache-firmware-main-${{ matrix.config }}-${{ env.IDF_VERSION }}-
+      - name: Build
+        env:
+          LEG: ${{ matrix.config }}
+        run: |
+          . "$IDF_PATH/export.sh"
+          defaults="sdkconfig.defaults;sdkconfig.defaults.esp32s3"
+          case "$LEG" in
+            dev)              defaults="$defaults;sdkconfig.ci.dev" ;;
+            qemu)             defaults="$defaults;sdkconfig.qemu" ;;
+            release-unsigned) defaults="$defaults;sdkconfig.ci.release-unsigned" ;;
+            *) echo "unknown leg $LEG"; exit 1 ;;
+          esac
+          idf.py -B "build_$LEG" -DSDKCONFIG_DEFAULTS="$defaults" build
+      - name: Size report (JSON)
+        env:
+          LEG: ${{ matrix.config }}
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B "build_$LEG" size --format json > "size_$LEG.json"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: build-${{ matrix.config }}
+          retention-days: 14
+          path: |
+            firmware-main/build_${{ matrix.config }}/*.bin
+            firmware-main/build_${{ matrix.config }}/*.elf
+            firmware-main/build_${{ matrix.config }}/*.map
+            firmware-main/build_${{ matrix.config }}/flasher_args.json
+            firmware-main/build_${{ matrix.config }}/flash_args
+            firmware-main/build_${{ matrix.config }}/project_description.json
+            firmware-main/build_${{ matrix.config }}/ota_data_initial.bin
+            firmware-main/size_${{ matrix.config }}.json
+
+  size-report:
+    name: size report vs base
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Download head dev build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: build-dev
+          path: head-artifacts
+      - name: Build base for comparison
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          . "$IDF_PATH/export.sh"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git checkout -q "$BASE_SHA"
+          idf.py -B build_base_dev \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" build
+          idf.py -B build_base_dev size --format json > size_base.json
+          cp head-artifacts/size_dev.json size_head.json 2>/dev/null || true
+          [ -f size_head.json ] || idf.py -B build_head_placeholder size --format json > size_head.json
+      - name: Compare sizes
+        env:
+          ALLOW_GROWTH: ${{ contains(github.event.pull_request.labels.*.name, 'size-ok') }}
+        run: |
+          python3 tools/ci/size_diff.py --base size_base.json --head size_head.json \
+            $([ "$ALLOW_GROWTH" = "true" ] && echo --allow-growth) | tee size_summary.md
+          cat size_summary.md >> "$GITHUB_STEP_SUMMARY"
+
+  qemu-tests:
+    name: qemu tests (esp32s3)
+    needs: build
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Install QEMU host dependencies (spec D2)
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends libgcrypt20 libglib2.0-0 libpixman-1-0 libsdl2-2.0-0 libslirp0
+      - name: Install QEMU xtensa
+        run: |
+          . "$IDF_PATH/export.sh"
+          python "$IDF_PATH/tools/idf_tools.py" install qemu-xtensa
+      - name: Install pytest-embedded (pinned)
+        run: python3 -m pip install -r firmware-main/test/requirements.txt
+      - name: Run QEMU suite
+        run: |
+          . "$IDF_PATH/export.sh"
+          mkdir -p reports
+          pytest firmware-main/test -m qemu \
+            --embedded-services idf,qemu --target esp32s3 \
+            --junitxml=reports/qemu.xml -v
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qemu-reports
+          path: reports/
+          if-no-files-found: warn
+
+  sbom:
+    name: SBOM (dev build)
+    needs: build
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Generate SBOM
+        run: |
+          . "$IDF_PATH/export.sh"
+          python3 -m pip install esp-idf-sbom
+          # VERIFY: confirm the `sbom-create` command name in the pinned esp-idf-sbom
+          # version; the extension also registers `idf.py sbom` aliases in some versions.
+          idf.py -B build_dev \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" \
+            sbom-create -o pd-main.spdx
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pd-main-sbom
+          path: firmware-main/pd-main.spdx
+          retention-days: 30

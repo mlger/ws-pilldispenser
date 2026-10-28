@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PillDispenser — Web Flasher</title>
+  <meta name="description" content="Install PillDispenser firmware on the Waveshare ESP32-S3-Touch-LCD-4.3B from your browser." />
+  <!-- ESP Web Tools 10.4.0, pinned CDN URL with SRI (docs/web-flasher.md).
+       VERIFY: the SRI hash covers the entry module only; the bundle dynamically
+       imports sibling files, so those are not individually integrity-checked.
+       Vendoring the full dist/web directory is planned (docs/ci-cd.md VERIFY #2). -->
+  <script type="module"
+          src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"
+          integrity="sha384-f+fR3K1mnKB2tVps4hdEh+qJvLgH2bKw81Yn+eNE3+gE8YpqocjkxQON4k19I3e/"
+          crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf7f2;
+      --card: #ffffff;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --accent: #b45309;
+      --ok: #166534;
+      --bad: #991b1b;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    main { max-width: 860px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    header h1 { font-size: 1.9rem; margin: 0 0 .25rem; }
+    header p { color: var(--muted); margin-top: 0; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1.25rem 0;
+    }
+    h2 { font-size: 1.15rem; margin: 0 0 .75rem; }
+    code {
+      background: #f3f4f6;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: .05rem .3rem;
+      font-size: .92em;
+    }
+    pre {
+      background: #111827;
+      color: #e5e7eb;
+      padding: .9rem 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: .88rem;
+    }
+    .banner { padding: .75rem 1rem; border-radius: 8px; font-size: .95rem; }
+    .banner.ok { background: #dcfce7; color: var(--ok); }
+    .banner.bad { background: #fee2e2; color: var(--bad); }
+    .banner.hidden { display: none; }
+    .channels { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .channels button {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 999px;
+      padding: .45rem 1.1rem;
+      font-size: .95rem;
+      cursor: pointer;
+    }
+    .channels button[aria-pressed="true"] {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    esp-web-install-button[install-unsupported] { display: none; }
+    ol li { margin: .35rem 0; }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: .85rem;
+      padding: 1rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>PillDispenser Firmware</h1>
+      <p>Browser-based installer for the Waveshare ESP32-S3-Touch-LCD-4.3B.</p>
+    </header>
+
+    <div id="serial-banner" class="banner hidden" role="status"></div>
+
+    <section aria-labelledby="install-h">
+      <h2 id="install-h">Install firmware</h2>
+      <div class="channels" role="group" aria-label="Release channel">
+        <button type="button" data-channel="stable" aria-pressed="true">stable</button>
+        <button type="button" data-channel="beta" aria-pressed="false">beta</button>
+        <button type="button" data-channel="dev" aria-pressed="false">dev (development)</button>
+      </div>
+      <esp-web-install-button manifest="stable/manifest.json">
+        <button type="button" slot="activate">Connect &amp; Install</button>
+        <span slot="unsupported">Web Serial is not available in this browser.</span>
+      </esp-web-install-button>
+      <p id="release-info" style="color: var(--muted); font-size: .9rem;">
+        Channel builds are generated from tagged releases in Phase 6; until then
+        this page is a placeholder (docs/web-flasher.md).
+      </p>
+    </section>
+
+    <section aria-labelledby="browser-h">
+      <h2 id="browser-h">Browser support</h2>
+      <p>
+        <strong>Supported:</strong> desktop Chrome/Edge 89+, Opera, Firefox 151+ desktop
+        (Web Serial permission), Chrome for Android 148+ (USB-OTG, best effort).<br />
+        <strong>Not supported:</strong> Safari (macOS/iOS), Firefox for Android —
+        use the command-line fallback below.
+      </p>
+    </section>
+
+    <section aria-labelledby="fallback-h">
+      <h2 id="fallback-h">Command-line fallback (merged image)</h2>
+      <pre>esptool.py --chip esp32s3 --port /dev/ttyUSB0 --baud 921600 \
+  write_flash 0x0 pd-main-&lt;version&gt;-dev-merged.bin</pre>
+      <p>The merged image is flashed at address <code>0x0</code>, matching the
+      Waveshare procedure. Never use the merged image to update a configured
+      device — it would overwrite NVS (<code>0x9000</code>).</p>
+    </section>
+
+    <section aria-labelledby="steps-h">
+      <h2 id="steps-h">Putting the board into download mode</h2>
+      <ol>
+        <li>Use the USB-C port labelled <strong>UART</strong> (auto-download circuit) with a data-capable cable; close any serial monitor.</li>
+        <li>Click <em>Connect &amp; Install</em> and pick the serial port.</li>
+        <li>If the port does not appear: unplug the board (and the 7&ndash;36&nbsp;V supply / battery), hold <strong>BOOT</strong>, plug USB in, release <strong>BOOT</strong>, then retry.</li>
+        <li>After flashing, press <strong>RESET</strong> (download mode is not exited automatically).</li>
+        <li>Linux: add your user to the <code>dialout</code> group. macOS: install the USB-UART driver if the port is missing.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="privacy-h">
+      <h2 id="privacy-h">Privacy</h2>
+      <p>This page is static. It collects no data and never touches device eFuses.</p>
+    </section>
+  </main>
+
+  <footer>
+    PillDispenser &middot; firmware flashing via ESP Web Tools 10.4.0 &middot;
+    <a href="https://github.com/mlger/pill-dispenser">source</a>
+  </footer>
+
+  <script type="text/javascript">
+    (function () {
+      var banner = document.getElementById('serial-banner');
+      if (!('serial' in navigator)) {
+        banner.textContent = 'This browser does not expose Web Serial — use the command-line fallback below.';
+        banner.className = 'banner bad';
+      } else {
+        banner.textContent = 'Web Serial available — connect the board with the UART USB-C port.';
+        banner.className = 'banner ok';
+      }
+
+      var buttons = document.querySelectorAll('.channels button');
+      var button = document.querySelector('esp-web-install-button');
+      buttons.forEach(function (b) {
+        b.addEventListener('click', function () {
+          buttons.forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+          button.setAttribute('manifest', b.dataset.channel + '/manifest.json');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

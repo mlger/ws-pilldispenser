@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    "firmware-main": {
+      "release-type": "simple",
+      "component": "pd-main"
+    },
+    "firmware-coproc": {
+      "release-type": "simple",
+      "component": "pd-coproc"
+    },
+    "android-app": {
+      "release-type": "simple",
+      "component": "pd-android"
+    },
+    "cloud": {
+      "release-type": "node",
+      "component": "pd-cloud"
+    },
+    "web-flasher": {
+      "release-type": "simple",
+      "component": "pd-web-flasher"
+    }
+  },
+  "plugins": ["sentence-case"]
+}

@@ -1,0 +1,8 @@
+# CI release-shaped leg: secure boot build path without signing and without
+# flash encryption, so the size/layout of a release build is measured in CI
+# while no keys are involved (spec C1 matrix leg "release-unsigned").
+CONFIG_PD_HAL_REAL=y
+CONFIG_PD_SIM_CONSOLE=n
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+CONFIG_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=n

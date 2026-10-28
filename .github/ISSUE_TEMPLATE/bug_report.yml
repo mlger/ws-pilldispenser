@@ -1,0 +1,42 @@
+name: Bug report
+description: Something is broken (non dose-safety).
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - firmware-main
+        - firmware-coproc
+        - cloud
+        - android-app
+        - web-flasher
+        - tools / CI
+        - docs
+    validations:
+      required: true
+  - type: input
+    id: board_rev
+    attributes:
+      label: Board revision
+      description: For firmware issues. Waveshare ESP32-S3-Touch-LCD-4.3B rev x.x
+  - type: input
+    id: fw_version
+    attributes:
+      label: Firmware / app version
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Expected vs actual. Include logs (rendered as shell).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true

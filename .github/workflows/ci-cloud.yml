@@ -1,0 +1,72 @@
+# ci-cloud — Firebase functions, bridge worker, Firestore rules (spec C4).
+#
+# Acceptance criteria: 100% of rules test cases pass; no deploy from this file
+# (deploys live in deploy-cloud.yml with WIF + environments).
+#
+# Jobs self-skip until cloud/functions (or cloud/bridge) contains a
+# package.json.
+name: ci-cloud
+
+on:
+  pull_request:
+    paths:
+      - 'cloud/**'
+      - '.github/workflows/ci-cloud.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'cloud/**'
+      - '.github/workflows/ci-cloud.yml'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  functions-and-bridge:
+    name: functions + bridge worker
+    if: hashFiles('cloud/**/package.json') != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: cloud/**/package-lock.json
+      - name: Install, lint, typecheck, test
+        run: |
+          for d in cloud/functions cloud/bridge; do
+            if [ -f "$d/package.json" ]; then
+              (cd "$d" && npm ci && npm run lint --if-present && npm run typecheck --if-present && npm test)
+            fi
+          done
+
+  firestore-rules:
+    name: Firestore rules emulator tests
+    if: hashFiles('cloud/**/package.json') != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+      - name: Rules tests (cross-household isolation, roles, write-once history)
+        run: |
+          # Phase 4: firebase emulators:exec --only firestore "npm test"
+          # with @firebase/rules-unit-testing covering cross-household
+          # isolation, caregiver vs patient roles, device tokens, and
+          # write-once dose history (spec C4).
+          if [ ! -f cloud/firestore.rules ]; then
+            echo "cloud/firestore.rules not present yet (Phase 4)"
+            exit 0
+          fi
+          echo "rules emulator suite activates in Phase 4"

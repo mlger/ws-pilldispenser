@@ -1,0 +1,11 @@
+# QEMU leg (spec A3). Layered after sdkconfig.defaults.esp32s3.
+#   16 MB flash, no PSRAM, console UART0, OpenCores Ethernet for MQTT tests.
+CONFIG_PD_HAL_SIM=y
+CONFIG_PD_SIM_CONSOLE=y
+CONFIG_PD_TEST_HOOKS=y
+CONFIG_ETH_USE_OPENETH=y
+# PSRAM absent under QEMU until the Phase 0.5 spike proves octal emulation.
+CONFIG_SPIRAM=n
+CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
+# DIO precaution (spec A3) — VERIFY QIO behavior under QEMU (spike a).
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y

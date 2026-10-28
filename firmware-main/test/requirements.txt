@@ -1,0 +1,7 @@
+# Pinned per spec D2/D4 (pytest-embedded ~= 2.x); Dependabot bumps weekly.
+pytest==8.4.2
+pytest-embedded==2.9.3
+pytest-embedded-idf==2.9.3
+pytest-embedded-qemu==2.9.3
+pytest-embedded-serial==2.9.3
+pytest-embedded-serial-esp==2.9.3

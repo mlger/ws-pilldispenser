@@ -1,0 +1,59 @@
+# ci-coproc — co-processor firmware CI (spec C2).
+#
+# Acceptance criteria: protocol codec tests identical on both sides (the same
+# core_protocol sources as firmware-main); build green.
+#
+# Phase 3 activates this workflow: the MCU decision (RP2040 / ESP32-C3 /
+# STM32G0) is documented in firmware-coproc/README.md. Until a buildable
+# project exists, jobs self-skip so the workflow stays green.
+name: ci-coproc
+
+on:
+  pull_request:
+    paths:
+      - 'firmware-coproc/**'
+      - 'firmware-main/components/core_protocol/**'
+      - '.github/workflows/ci-coproc.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'firmware-coproc/**'
+      - 'firmware-main/components/core_protocol/**'
+      - '.github/workflows/ci-coproc.yml'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: co-processor build
+    if: hashFiles('firmware-coproc/**/CMakeLists.txt') != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # Phase 3: pick ONE of the following toolchains when the MCU is chosen:
+      #   ESP32-C3: container espressif/idf:v5.5.6, `idf.py -DIDF_TARGET=esp32c3 build`
+      #   RP2040:   pico-sdk (pinned) + arm-none-eabi-gcc (pinned)
+      #   STM32G0:  arm-none-eabi-gcc (pinned) + CMake toolchain file
+      - name: Build (Phase 3 placeholder)
+        run: |
+          echo "firmware-coproc build activates in Phase 3"
+          exit 1
+
+  codec-host-tests:
+    name: shared codec host tests
+    if: hashFiles('firmware-coproc/**/CMakeLists.txt') != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Run codec tests from the coproc checkout
+        run: |
+          echo "Phase 3: cmake -S firmware-coproc/host_test -B build-host && ctest"
+          exit 1

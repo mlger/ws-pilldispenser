@@ -1,0 +1,10 @@
+# Code owners — replace placeholder handles with real GitHub usernames/teams.
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+/firmware-main/         @fw-owner
+/firmware-coproc/       @fw-owner
+/cloud/                 @cloud-owner
+/android-app/           @app-owner
+/.github/               @repo-admin
+/tools/release/         @repo-admin
+/docs/fmea.md           @safety-owner

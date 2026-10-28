@@ -1,0 +1,52 @@
+version: 2
+updates:
+  # Bumps the SHA-pinned GitHub Actions in .github/workflows/ weekly.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - area/ci
+    commit-message:
+      prefix: chore
+
+  # pytest-embedded toolchain for firmware tests.
+  - package-ecosystem: pip
+    directory: /firmware-main/test
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - area/test
+    commit-message:
+      prefix: chore
+
+  # Cloud functions / bridge worker. (web-flasher is a static site; add its npm
+  # ecosystem entry when it gains build tooling.)
+  - package-ecosystem: npm
+    directory: /cloud
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    labels:
+      - area/cloud
+    commit-message:
+      prefix: chore
+
+# NOTE (VERIFY/DECISION): ESP-IDF Component Manager deps (idf_component.yml) are not a
+# Dependabot ecosystem. Drift is detected by the nightly "idf-dep-drift" job, which runs
+# `idf.py update-dependencies` dry-run and opens an issue on changes. Gradle entries for
+# android-app are added in Phase 5 together with the gradle project.

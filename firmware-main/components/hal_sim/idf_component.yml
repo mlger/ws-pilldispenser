@@ -1,0 +1,5 @@
+## ESP-IDF Component Manager manifest for hal_sim.
+## Phase 1 (spike b) adds the QEMU virtual framebuffer panel:
+# dependencies:
+#   espressif/esp_lcd_qemu_rgb: "^1.0.2"
+dependencies: {}

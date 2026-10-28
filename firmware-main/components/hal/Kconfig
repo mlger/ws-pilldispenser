@@ -1,0 +1,49 @@
+# Pill Dispenser HAL backend selection (spec A2).
+# Application code includes only hal_*.h; hal_real and hal_sim implement the
+# same contracts. CMakeLists of both backends gate their sources on this choice
+# so exactly one backend is linked into any build.
+
+menu "Pill Dispenser HAL"
+
+    choice PD_HAL_BACKEND
+        prompt "Hardware backend"
+        default PD_HAL_REAL
+        help
+            Selects which HAL backend is linked into the application:
+            hal_real (board drivers for the Waveshare 4.3B) or hal_sim
+            (QEMU / host simulation, used by the qemu and host test legs).
+
+        config PD_HAL_REAL
+            bool "Real Waveshare 4.3B hardware"
+
+        config PD_HAL_SIM
+            bool "Simulated (QEMU / host)"
+
+    endchoice
+
+    config PD_SIM_CONSOLE
+        bool "Enable the 'sim ...' interactive console commands"
+        depends on PD_HAL_SIM
+        default y
+        help
+            Registers the esp_console 'sim' command (touch / time / tz / coproc /
+            fb dump / ioexp subcommands) used by scenario tests and interactive
+            QEMU sessions. Release builds must disable this (sdkconfig.release
+            sets CONFIG_PD_SIM_CONSOLE=n; verified by tools/ci/check_release_sdkconfig.py).
+
+    config PD_SIM_SCENARIO_PATH
+        string "Path to the scenario script (LittleFS)"
+        depends on PD_SIM_CONSOLE
+        default "/littlefs/scenario.txt"
+        help
+            Optional startup scenario file: one `sim ...` command per line,
+            executed by the sim console after boot.
+
+    config PD_TEST_HOOKS
+        bool "Expose deterministic log markers for tests"
+        default y
+        help
+            Emits stable markers expected by automated tests, e.g. "PD_READY"
+            and "FSM: <state>". Keep enabled on dev/qemu legs.
+
+endmenu

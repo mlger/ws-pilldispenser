@@ -1,0 +1,77 @@
+# pages — deploy the web flasher to GitHub Pages (spec E5).
+#
+# Acceptance criteria: deployment finishes within 10 minutes; the site is
+# static, same-origin, collects no data, never touches eFuses.
+#
+# GitHub Pages requires a public repository on the Free plan: the deploy job
+# self-skips on private with a notice.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web-flasher/**'
+      - 'tools/flasher/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build-site:
+    name: build flasher site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Try to attach latest release assets (Phase 6 fills channels)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p _site/stable _site/beta _site/dev
+          cp -r web-flasher/. _site/
+          for ch in stable beta; do
+            gh release download --repo "$GITHUB_REPOSITORY" \
+              --pattern 'pd-main-*.bin' --pattern 'manifest.json' \
+              --dir "_site/$ch" 2>/dev/null || true
+          done
+      - name: Verify SHA256SUMS when present
+        run: |
+          for d in _site/stable _site/beta; do
+            if [ -f "$d/SHA256SUMS" ]; then (cd "$d" && sha256sum -c SHA256SUMS); fi
+          done
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
+        with:
+          path: _site
+
+  deploy:
+    name: deploy to GitHub Pages
+    if: github.event.repository.private == false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  notice:
+    name: private repo notice
+    if: github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain skip
+        run: |
+          echo "::notice::GitHub Pages is unavailable on private repos (Free plan). The flasher site deploys once the repository is public (or on a paid plan)."

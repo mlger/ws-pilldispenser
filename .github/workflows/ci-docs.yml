@@ -1,0 +1,40 @@
+# ci-docs — markdownlint + link check (spec Section B).
+name: ci-docs
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+      - '.markdownlint-cli2.jsonc'
+      - '.github/workflows/ci-docs.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+      - '.markdownlint-cli2.jsonc'
+      - '.github/workflows/ci-docs.yml'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  docs-lint:
+    name: markdownlint + link check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+      - name: markdownlint
+        run: npx --yes markdownlint-cli2 "**/*.md"
+      - name: Link check
+        run: python3 tools/ci/check_links.py docs README.md

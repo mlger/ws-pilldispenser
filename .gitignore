@@ -1,0 +1,50 @@
+# --- Build outputs ---
+build/
+build-*/
+dist/
+_site/
+reports/
+out/
+
+# --- ESP-IDF ---
+sdkconfig
+sdkconfig.old
+sdkconfig.ci
+dependencies.lock
+managed_components/
+version.inc
+project_description.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# --- Node ---
+node_modules/
+
+# --- Android ---
+.gradle/
+local.properties
+*.apk
+*.aab
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+
+# --- Secrets: never commit keys or credentials ---
+*.pem
+*.key
+*.keystore
+*.jks
+*.p12
+secrets*.json
+.env
+.env.*
+!.env.example
+
+# --- Keep vendored firmware version file ---
+!firmware-main/version.txt

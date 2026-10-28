@@ -1,0 +1,28 @@
+# release-please — manifest-mode release automation (spec C8).
+# Conventional Commits are enforced by the pr-title workflow; this job turns
+# merged feat:/fix: commits into release PRs and tagged releases.
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release-please:
+    name: manage release PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Release please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

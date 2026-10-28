@@ -1,0 +1,79 @@
+# CodeQL — security scanning (spec C6).
+#
+# On PRIVATE repositories without GitHub Advanced Security, CodeQL is not
+# available: the analyze jobs self-skip with a notice. Flip the repository to
+# public (or attach the GHAS plan) to enable (docs/ci-cd.md feature matrix).
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '30 5 * * 1'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  notice:
+    name: availability notice
+    if: github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain skip
+        run: |
+          echo "::notice::CodeQL requires GitHub Advanced Security on private repos. Skipping. Flip the repo to public (or attach GHAS) to enable."
+
+  analyze:
+    name: analyze (${{ matrix.language }})
+    if: github.event.repository.private == false
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, python]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
+        with:
+          languages: ${{ matrix.language }}
+      - name: Analyze
+        uses: github/codeql-action/analyze@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  analyze-cpp:
+    name: analyze (c-cpp, host_test manual build)
+    if: github.event.repository.private == false
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Initialize CodeQL (manual build mode)
+        uses: github/codeql-action/init@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
+        with:
+          languages: c-cpp
+          build-mode: manual
+      - name: Build host tests (pure C, no IDF needed)
+        run: |
+          cmake -S firmware-main/host_test -B build-host
+          cmake --build build-host -j
+      - name: Analyze
+        uses: github/codeql-action/analyze@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3
+        with:
+          category: "/language:c-cpp"

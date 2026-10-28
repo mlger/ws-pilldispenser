@@ -1,0 +1,642 @@
+=====================================================================
+SECTION A — TESTABILITY ARCHITECTURE (HAL + Kconfig REAL/SIM switch)
+=====================================================================
+Goal: every line of business logic must run in three places with no
+#ifdefs in application code: (1) host (pure C, CTest), (2) ESP32-S3
+under Espressif QEMU, (3) the real Waveshare ESP32-S3-Touch-LCD-4.3B.
+
+A1. Layering
+- /firmware-main/components/core_*   Pure C11, no ESP-IDF headers:
+  core_scheduler (dose slots, recurrence, DST/timezone math via POSIX
+  TZ strings), core_fsm (dispense state machine), core_protocol
+  (RS485 frame codec + CRC), core_inventory. Builds with plain CMake
+  for host tests AND as ESP-IDF components.
+- /firmware-main/components/hal       Interface headers only:
+  hal_display.h, hal_touch.h, hal_ioexp.h, hal_rtc.h, hal_coproc.h,
+  hal_net.h, hal_storage_ext.h (TF card), hal_power.h, hal_buzzer.h.
+- /firmware-main/components/hal_real  Wraps drivers/gt911, drivers/ch422g,
+  drivers/pcf85063, esp_lcd RGB (ST7262), RS485 UART, Wi-Fi, SD.
+- /firmware-main/components/hal_sim   QEMU/host implementations:
+  * sim_display  -> espressif/esp_lcd_qemu_rgb (^1.0.2), RGB565, 800x480
+  * sim_touch    -> scripted events injected via console command
+                    `sim touch x y [down|up]` and from a scenario file
+  * sim_ioexp    -> in-RAM CH422G register model (backlight, LCD reset,
+                    SD_CS=EXIO4, DO lines), logs every write
+  * sim_rtc      -> esp_timer/gettimeofday + settable offset
+                    (`sim time set <ISO8601>`), used for DST edge tests
+  * sim_coproc   -> in-process co-processor model speaking the real
+                    core_protocol frames (ack, jam, empty, timeout,
+                    CRC error injection via `sim coproc fault <type>`)
+  * sim_net      -> OpenCores Ethernet (CONFIG_ETH_USE_OPENETH) with
+                    QEMU `-nic user,model=open_eth`; broker on host at
+                    10.0.2.2 (QEMU user-net gateway)
+  * sim_storage_ext -> RAM/flash-backed stub (TF card is HIL-only:
+                    SD_CS is driven by CH422G EXIO4 over I2C)
+  * sim_power, sim_buzzer, sim_sensors -> deterministic stubs
+- Wi-Fi/BLE provisioning: hal_net exposes connect()/status(); SIM build
+  never links esp_wifi/BT (not emulated in QEMU).
+
+A2. Kconfig (firmware-main/components/hal/Kconfig)
+  choice PD_HAL_BACKEND
+      prompt "Hardware backend"
+      default PD_HAL_REAL
+      config PD_HAL_REAL
+          bool "Real Waveshare 4.3B hardware"
+      config PD_HAL_SIM
+          bool "Simulated (QEMU / host)"
+  endchoice
+  config PD_SIM_CONSOLE        (depends on PD_HAL_SIM) enables the
+                               `sim ...` console commands
+  config PD_SIM_SCENARIO_PATH  optional LittleFS scenario script
+  config PD_TEST_HOOKS         exposes deterministic log markers
+                               (e.g. "PD_READY", "FSM: <state>")
+- hal_real and hal_sim each declare REQUIRES via
+  `if(CONFIG_PD_HAL_REAL)` in CMakeLists so only one backend links.
+- Release builds must assert PD_HAL_REAL=y and PD_SIM_CONSOLE=n
+  (static_assert in main + CI check of sdkconfig).
+
+A3. sdkconfig overlays (in /firmware-main)
+- sdkconfig.defaults           common settings
+- sdkconfig.defaults.esp32s3   board: 16 MB flash, 8 MB octal PSRAM,
+                               console on UART0 (board's UART Type-C)
+- sdkconfig.qemu               PD_HAL_SIM=y, CONFIG_ETH_USE_OPENETH=y,
+                               console UART0 (never USB-Serial-JTAG:
+                               it is a stub in QEMU and boots silent),
+                               no esp_wifi/BT, no ADC calibration at
+                               boot, CONFIG_SPIRAM_IGNORE_NOTFOUND=y,
+                               LVGL draw buffers sized to fit internal
+                               RAM when PSRAM is absent,
+                               flash size 16MB, flash mode DIO
+                               (precaution; verify QIO under QEMU)
+- sdkconfig.qemu.psram         adds PSRAM; used only after the Phase
+                               0.5 spike proves `-m 8M` + octal works
+- sdkconfig.release            secure boot v2 + flash encryption
+                               RELEASE mode, PD_HAL_REAL=y, logs WARN
+- sdkconfig.ci.*               per-matrix-leg files picked up by pytest
+                               `config` parametrization
+
+A4. Rules
+- Application code may include only hal_*.h, never driver headers.
+- Every SIM driver logs deterministic markers that tests expect.
+- Every HAL interface gets a contract test run against SIM (QEMU) and
+  REAL (HIL) so the two cannot drift.
+
+=====================================================================
+SECTION B — UPDATED MONOREPO STRUCTURE
+=====================================================================
+/
+├── .github/
+│   ├── workflows/
+│   │   ├── ci-firmware-main.yml   PR + push(main); paths: firmware-main/**,
+│   │   │                          tools/**, this file
+│   │   ├── ci-coproc.yml          PR + push(main); paths: firmware-coproc/**
+│   │   ├── ci-android.yml         PR + push(main); paths: android-app/**
+│   │   ├── ci-cloud.yml           PR + push(main); paths: cloud/**
+│   │   ├── ci-web-flasher.yml     PR; paths: web-flasher/**, tools/flasher/**
+│   │   ├── ci-docs.yml            PR; paths: docs/**, **/*.md (markdownlint,
+│   │   │                          link check)
+│   │   ├── codeql.yml             PR + push(main) + weekly schedule
+│   │   ├── dependency-review.yml  pull_request
+│   │   ├── scorecard.yml          weekly schedule + push(main) (optional)
+│   │   ├── release-please.yml     push(main)
+│   │   ├── release.yml            release: published (from release-please tag)
+│   │   ├── pages.yml              workflow_run(release.yml completed) +
+│   │   │                          push(main) paths web-flasher/** +
+│   │   │                          workflow_dispatch
+│   │   ├── deploy-cloud.yml       push(main) paths cloud/** -> staging;
+│   │   │                          release: published -> production
+│   │   ├── hil.yml                workflow_dispatch + nightly schedule +
+│   │   │                          PR label "run-hil" (same-repo PRs only);
+│   │   │                          self-hosted runner [self-hosted, hil-4.3b]
+│   │   └── nightly.yml            schedule: ESP-IDF canary leg, long QEMU
+│   │                              soak, sbom-check against NVD
+│   ├── dependabot.yml
+│   ├── CODEOWNERS
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml         board rev, fw version, app version, logs
+│   │   ├── dose_safety_issue.yml  missed/double dose, wrong time — triage P0
+│   │   ├── feature_request.yml
+│   │   └── config.yml             disables blank issues, links SECURITY.md
+│   └── SECURITY.md                private vulnerability reporting
+├── release-please-config.json     packages: firmware-main, firmware-coproc,
+│                                  android-app, cloud, web-flasher
+├── .release-please-manifest.json
+├── firmware-main/
+│   ├── components/ core_* hal hal_real hal_sim ui scheduler fsm storage
+│   │   comms ota coproc_link drivers/{ch422g,gt911,pcf85063}
+│   │   (each component may carry test/ with Unity TEST_CASEs)
+│   ├── main/
+│   ├── version.txt                written by release-please -> PROJECT_VER
+│   ├── partitions.csv
+│   ├── sdkconfig.defaults*, sdkconfig.qemu*, sdkconfig.release, sdkconfig.ci.*
+│   ├── host_test/                 CMake + CTest for core_* (ASan/UBSan)
+│   └── test/
+│       ├── apps/unit/             Unity test app (all component TEST_CASEs)
+│       ├── apps/scenario/         full firmware, PD_HAL_SIM, scenario hooks
+│       ├── pytest_unit_qemu.py
+│       ├── pytest_scenarios_qemu.py
+│       ├── pytest_ota_rollback_qemu.py
+│       ├── pytest_security_qemu.py   (flash enc; secure boot = experimental)
+│       ├── pytest_hil.py             marked hil, runs only on self-hosted
+│       ├── conftest.py
+│       ├── fixtures/ (mosquitto.conf, test CA, OTA images, scenarios)
+│       └── requirements.txt          pinned pytest-embedded~=2.x packages
+├── firmware-coproc/
+├── cloud/ (bridge worker, functions, firestore.rules, broker config, tests)
+├── android-app/
+├── web-flasher/
+│   ├── index.html                 ESP Web Tools 10.4.0, vendored/pinned
+│   ├── assets/ (css, js for channel picker, checksum + changelog view)
+│   ├── setup-guide.html           rendered from docs/setup-guide.md
+│   └── (generated at deploy) stable/ beta/ dev/ each with manifest.json,
+│       firmware parts, merged .bin, SHA256SUMS, release.json
+├── tools/
+│   ├── ci/check_no_efuse_burn.sh  fails CI if any workflow/script burns
+│   │                              eFuses outside `idf.py qemu ...`
+│   ├── ci/check_release_sdkconfig.py
+│   ├── ci/size_diff.py            compares idf.py size JSON vs base branch
+│   ├── qemu/run_qemu.sh           wraps idf.py qemu with project defaults
+│   ├── flasher/gen_manifest.py    flasher_args.json -> manifest.json
+│   ├── flasher/merge_bin.sh       esptool merge_bin from flash_args
+│   ├── flasher/gen_release_json.py version, channel, SHA256, changelog
+│   └── release/sign_images.sh     runs ONLY in the `firmware-signing`
+│                                  environment
+├── hardware/
+└── docs/ (architecture.md, protocol.md, fmea.md, test-plan.md,
+          setup-guide.md, ci-cd.md, release-process.md,
+          security-keys.md, qemu-testing.md, web-flasher.md)
+
+=====================================================================
+SECTION C — GITHUB, CI/CD AND AUTOMATION REQUIREMENTS
+=====================================================================
+C0. Global rules for every workflow
+- Top-level `permissions: {}` or `contents: read`; widen per job only.
+- Every `uses:` pinned to a full 40-char commit SHA with a `# vX.Y.Z`
+  comment; Dependabot (github-actions ecosystem) bumps them.
+- No `pull_request_target` that checks out or runs PR code. Fork PRs
+  get no secrets and never run on self-hosted runners.
+- Untrusted inputs (PR titles, branch names) are passed via `env:`,
+  never interpolated directly into `run:`.
+- `concurrency: group: ${{ github.workflow }}-${{ github.ref }}`,
+  cancel-in-progress for PRs, never for deploy/release jobs.
+- Every job declares `timeout-minutes` (build 30, QEMU 25, HIL 45).
+- ESP-IDF version pinned to an exact tag. Baseline: v5.5.6 (blocking);
+  canary leg: v6.1 (non-blocking, nightly) until migration.
+- Toolchain via `container: espressif/idf:<exact tag>` or
+  espressif/esp-idf-ci-action@<sha> # v1.2.0 with esp_idf_version,
+  target: esp32s3, path: firmware-main.
+- ccache enabled (IDF_CCACHE_ENABLE=1) and cached with actions/cache keyed
+  on IDF tag + sdkconfig hash; Gradle via gradle/actions/setup-gradle;
+  npm/pip caches via setup-node/setup-python.
+
+C1. ci-firmware-main.yml
+  jobs:
+  - lint: clang-format --dry-run, cppcheck (component dirs, project
+    suppressions), `idf.py clang-check` (ESP-IDF clang-tidy wrapper),
+    tools/ci/check_no_efuse_burn.sh, Kconfig/sdkconfig sanity.
+  - host-tests: cmake -S firmware-main/host_test -B build-host
+    -DSANITIZE=ON && ctest --output-on-failure (scheduler, FSM, DST,
+    protocol codec, inventory). Optional: IDF linux target build.
+  - build (matrix): config in [dev, qemu, release-unsigned];
+    artifacts: build/*.bin, flasher_args.json, flash_args,
+    project_description.json, *.elf, *.map (14-day retention).
+  - size-report: `idf.py size --format json` (and --archives) on PR and
+    base; tools/ci/size_diff.py posts a job summary; fail if app
+    partition free space < 15% or growth > 64 KB without label
+    "size-ok".
+  - qemu-tests (needs build[qemu]): installs QEMU, runs pytest -m qemu;
+    uploads JUnit XML + QEMU logs; publishes a test summary.
+  - sbom: `idf.py sbom-create` on the dev build; upload .spdx.
+  Acceptance: a PR touching firmware-main cannot merge unless lint,
+  host-tests, build (all legs), size-report and qemu-tests pass.
+
+C2. ci-coproc.yml
+  - RP2040 (pico-sdk, pinned) or ESP32-C3 (esp-idf-ci-action, target
+    esp32c3) or STM32G0 (arm-none-eabi pinned) — whichever is chosen.
+  - Builds, runs host tests of the shared core_protocol codec (the same
+    sources as firmware-main), uploads .uf2/.bin/.elf.
+  Acceptance: protocol codec tests identical on both sides; build green.
+
+C3. ci-android.yml
+  - setup-java (Temurin 17/21 per AGP), gradle/actions/setup-gradle.
+  - ./gradlew ktlintCheck detekt lint testDebugUnitTest assembleDebug
+  - Optional instrumented tests on an emulator (reactivecircus/
+    android-emulator-runner) nightly only.
+  - Release build happens only in release.yml (signing environment).
+  Acceptance: no new lint/detekt issues (baseline file committed),
+  unit tests green, debug APK artifact uploaded.
+
+C4. ci-cloud.yml
+  - Functions + bridge worker: npm ci, lint, typecheck, unit tests.
+  - Firestore rules: `firebase emulators:exec --only firestore
+    "npm test"` with @firebase/rules-unit-testing, covering
+    cross-household isolation, caregiver vs patient roles, device
+    tokens, and write-once dose history.
+  - Broker config lint; bridge integration test against a local
+    mosquitto with test CA (same fixtures as QEMU MQTT tests).
+  Acceptance: 100% of rules test cases pass; no deploy from this file.
+
+C5. deploy-cloud.yml
+  - Auth: google-github-actions/auth@<sha> using Workload Identity
+    Federation (job permission id-token: write), no JSON keys.
+    Attribute condition restricts to this repo + refs/heads/main or
+    release tags.
+  - First step after auth: `firebase projects:list` (auth check). Known
+    issue: firebase-tools v15 has reports of ignoring WIF ADC
+    (firebase-tools#10726); if hit, document the workaround in
+    docs/ci-cd.md and pin the firebase-tools version that works.
+  - Environments: `staging` (auto on main), `production` (required
+    reviewers = 2 CODEOWNERS of /cloud, wait timer optional).
+  - `firebase deploy --only firestore:rules,firestore:indexes,functions
+    --project $PROJECT --non-interactive`
+  Acceptance: production deploy impossible without approval; rules
+  tests ran green on the same commit.
+
+C6. codeql.yml / dependency-review.yml / secret scanning
+  - CodeQL languages: c-cpp (manual build of host_test + firmware with
+    build-mode manual), java-kotlin, javascript-typescript, python,
+    actions.
+  - dependency-review on PRs: fail on high/critical, deny GPL-3.0 for
+    the app, comment summary. (Availability on private repos depends on
+    plan — verify.)
+  - Enable secret scanning + push protection + private vulnerability
+    reporting in repo settings (document in docs/ci-cd.md).
+
+C7. dependabot.yml
+  - github-actions (/), gradle (/android-app), npm (/cloud/functions,
+    /cloud/bridge, /web-flasher), pip (/firmware-main/test).
+  - weekly, grouped minor/patch, conventional-commit prefixes
+    (`chore(deps):`), labels per area.
+  - ESP-IDF Component Manager deps (idf_component.yml) are not a
+    Dependabot ecosystem: nightly.yml runs `idf.py update-dependencies`
+    in a dry run and opens an issue on drift.
+
+C8. Release automation (release-please.yml + release.yml)
+  - Conventional Commits enforced by a PR-title check (amannn/action-
+    semantic-pull-request or equivalent, SHA-pinned).
+  - googleapis/release-please-action@<sha> # v5.0.0, manifest mode,
+    one component per package; firmware-main version written to
+    firmware-main/version.txt (PROJECT_VER) and shown on the device's
+    About screen and in MQTT telemetry.
+  - release.yml on release published:
+    1. build firmware-main with sdkconfig.release (unsigned images)
+    2. job `sign` in environment `firmware-signing` (required reviewer,
+       only tags matching v*): signs bootloader + app with the secure
+       boot v2 key from KMS/HSM via OIDC, or from an environment secret
+       as fallback (see Section G). Produces signed *-prod.bin.
+    3. build dev-channel images (sdkconfig.defaults, NO secure boot, NO
+       flash encryption) for the web flasher.
+    4. merged dev image via tools/flasher/merge_bin.sh;
+       manifest via tools/flasher/gen_manifest.py.
+    5. `idf.py sbom-create`; SHA256SUMS over every asset;
+       actions/attest-build-provenance for each binary.
+    6. Android: assembleRelease/bundleRelease signed with the upload
+       key from environment `android-release`; optional Firebase App
+       Distribution (WIF auth, `firebase appdistribution:distribute`).
+    7. Upload assets: pd-main-<ver>-dev-merged.bin, pd-main-<ver>-dev-
+       parts.zip, pd-main-<ver>-ota-prod-signed.bin, coproc-<ver>.uf2|bin,
+       app-<ver>.apk, *.spdx, SHA256SUMS, manifest.json.
+  Acceptance: a tag produces all assets + checksums + SBOM + provenance;
+  no signing key ever appears in logs or artifacts.
+
+C9. Repository governance
+  - Ruleset/branch protection on main: PR required, 1 approval (2 for
+    /firmware-main/components/{fsm,scheduler,ota} and /cloud/
+    firestore.rules), CODEOWNERS review required, required checks =
+    the acceptance jobs above, linear history, no force-push, dismiss
+    stale approvals.
+  - CODEOWNERS: /firmware-main/ @fw-owner, /firmware-coproc/ @fw-owner,
+    /cloud/ @cloud-owner, /android-app/ @app-owner, /.github/ and
+    /tools/release/ @repo-admin, /docs/fmea.md @safety-owner.
+  - PR template: linked issue, area, test evidence (QEMU/HIL logs),
+    safety impact (dose timing/count?), FMEA updated? y/n, screenshots.
+  - Labels: area/*, safety, run-hil, size-ok, release.
+
+C10. hil.yml (self-hosted)
+  - Runner on a Raspberry Pi/PC with the 4.3B + co-processor + a test
+    jig; label `hil-4.3b`; runner in an isolated network.
+  - Never triggered by fork PRs; flashes DEV builds only.
+  - pytest --embedded-services esp,idf -m hil --target esp32s3
+  Acceptance: nightly HIL green before any release tag.
+
+=====================================================================
+SECTION D — TESTING PLAN (built around the ESP-IDF QEMU guide)
+=====================================================================
+D1. What runs where
+| Area                               | Host CTest | QEMU (esp32s3) | HIL |
+| Scheduler, recurrence, DST/TZ math | yes        | yes            | smoke |
+| Dispense FSM (incl. faults)        | yes        | yes (sim_coproc)| yes |
+| RS485 protocol codec/CRC           | yes        | yes            | yes (real link) |
+| NVS / LittleFS persistence, power-loss replay | -  | yes        | yes |
+| MQTT/TLS client logic, offline queue | -        | yes (open_eth + host mosquitto) | yes (Wi-Fi) |
+| LVGL screens (render, flows)       | -          | yes (--graphics / esp_lcd_qemu_rgb, screenshot diff) | yes |
+| OTA download + rollback            | -          | yes (local HTTP server, reset) | yes |
+| Flash encryption (dev mode)        | -          | yes (emulated eFuses only) | never burn in CI |
+| Secure boot v2                     | -          | experimental on S3 (docs conflict) | manual ceremony only |
+| GT911, CH422G, PCF85063 (I2C)      | -          | SIM drivers only | yes |
+| Wi-Fi / BLE provisioning           | -          | no (not emulated) | yes |
+| TF card (SD_CS via CH422G EXIO4)   | -          | no             | yes |
+| RGB LCD timing / ST7262 / tearing  | -          | no             | yes |
+| Motor, sensors, jam/empty detection| -          | SIM only       | yes |
+| ADC (battery/sensors)              | -          | no (avoid calib at boot) | yes |
+
+D2. Local setup (Ubuntu; matches the official guide)
+  sudo apt-get install -y libgcrypt20 libglib2.0-0 libpixman-1-0 \
+       libsdl2-2.0-0 libslirp0
+  python $IDF_PATH/tools/idf_tools.py install qemu-xtensa qemu-riscv32
+  . $IDF_PATH/export.sh
+  pip install -r firmware-main/test/requirements.txt   # pytest-embedded~=2.x
+
+D3. Interactive QEMU (developer loop)
+  cd firmware-main
+  idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.qemu" \
+    build
+  idf.py -B build_qemu qemu --qemu-extra-args="-nic user,model=open_eth" monitor
+  idf.py -B build_qemu qemu --graphics monitor          # LVGL window
+  idf.py -B build_qemu qemu gdb                         # debug
+  idf.py -B build_qemu qemu efuse-summary               # emulated eFuses
+  # Custom image: must be exactly 16 MB (CONFIG_ESPTOOLPY_FLASHSIZE)
+  idf.py -B build_qemu qemu --flash-file my_16mb.bin monitor
+  # PSRAM leg (only after the Phase 0.5 spike passes):
+  --qemu-extra-args="-m 8M -global driver=ssi_psram,property=is_octal,value=true -nic user,model=open_eth"
+
+D4. Automated QEMU tests (pytest-embedded, services idf,qemu)
+  pytest firmware-main/test -m qemu \
+    --embedded-services idf,qemu --target esp32s3 \
+    --app-path firmware-main/test/apps/scenario --build-dir build_qemu \
+    --qemu-prog-path qemu-system-xtensa \
+    --qemu-cli-args="-nographic -machine esp32s3" \
+    --qemu-extra-args="-nic user,model=open_eth" \
+    --junitxml=reports/qemu.xml
+  Example test (firmware-main/test/pytest_scenarios_qemu.py):
+    import pytest
+    from pytest_embedded_idf.dut import IdfDut
+
+    @pytest.mark.qemu
+    @pytest.mark.parametrize('target', ['esp32s3'], indirect=True)
+    @pytest.mark.parametrize('config', ['qemu'], indirect=True)
+    def test_unity_components(dut: IdfDut) -> None:
+        dut.run_all_single_board_cases(timeout=120)
+
+    @pytest.mark.qemu
+    def test_dose_due_across_eu_dst(dut: IdfDut) -> None:
+        dut.expect_exact('PD_READY', timeout=60)
+        dut.write('sim tz CET-1CEST,M3.5.0,M10.5.0/3')
+        dut.write('sim time set 2026-03-29T00:59:50Z')   # DST jump
+        dut.write('sim coproc auto-ack on')
+        dut.expect(r'FSM: DOSE_DUE slot=\d+', timeout=30)
+        dut.expect_exact('FSM: DISPENSED', timeout=30)
+        dut.expect_exact('MQTT: event published dose', timeout=30)
+  Required QEMU suites:
+  - unit: every component's Unity TEST_CASEs (scheduler, fsm, storage,
+    comms, ota, coproc_link codec).
+  - scenarios: dose due/missed/snoozed, double-dose guard, jam/empty
+    from sim_coproc, power-loss mid-dispense (kill QEMU, restart with
+    same qemu_flash.bin, verify NVS journal replay), offline queue
+    flush when the broker returns, DST spring/fall for EU and US TZs,
+    leap day.
+  - mqtt: mosquitto on the runner with test CA; firmware connects to
+    10.0.2.2:8883; verify TLS, LWT, retained state, reconnect backoff.
+  - ui: boot with --graphics disabled in CI, but dump the framebuffer
+    via a test hook (`sim fb dump`) to PNG and compare to golden images
+    (tolerance-based) for each main screen.
+  - ota: host HTTP server serves v+1 image; device updates, reboots,
+    self-test fails on purpose -> bootloader rolls back -> test expects
+    the previous version marker. Second case: self-test passes ->
+    esp_ota_mark_app_valid_cancel_rollback.
+  - security (emulated eFuses only): flash encryption dev-mode boot
+    with a test key via `--qemu-efuse-path` / encrypted image; secure
+    boot v2 case marked xfail until proven on S3.
+  CI notes: QEMU consumes ~1 host core per guest CPU, so run suites
+  serially per job and shard across matrix jobs; per-test timeouts;
+  always upload JUnit XML, QEMU stdout and qemu_flash.bin on failure.
+
+D5. Host tests
+  cmake -S firmware-main/host_test -B build-host -DSANITIZE=ON
+  cmake --build build-host && ctest --test-dir build-host --output-on-failure
+  (Optional) ESP-IDF linux target for components that need IDF APIs.
+
+D6. Hardware-in-the-loop
+  pytest firmware-main/test -m hil --embedded-services esp,idf \
+    --target esp32s3 --port /dev/ttyUSB0
+  Covers GT911 touch (robot finger or touch-injection jig), CH422G
+  outputs, PCF85063 drift over 24 h, RS485 link with real co-processor
+  (BER, CRC, timeouts), motor/sensor jig, Wi-Fi + BLE provisioning,
+  TF card, RGB timing (no tearing at target refresh), isolated DI/DO.
+
+D7. Android, cloud, security tests: unchanged scope, now wired into
+  ci-android.yml, ci-cloud.yml, codeql.yml, dependency-review.yml.
+
+=====================================================================
+SECTION E — WEB FLASHER VIA GITHUB PAGES
+=====================================================================
+E1. Stack
+- ESP Web Tools 10.4.0 (pinned; vendored into /web-flasher/vendor or
+  loaded from a pinned CDN URL with SRI). Uses <esp-web-install-button
+  manifest="stable/manifest.json">. Optional Improv Wi-Fi serial
+  support in firmware (later phase).
+- All binaries are copied INTO the Pages artifact (same origin). Do not
+  point the manifest at Release asset URLs.
+
+E2. Manifest generation (tools/flasher/gen_manifest.py)
+- Input: build/flasher_args.json from the DEV build. Output: decimal
+  offsets, chipFamily "ESP32-S3". Never hand-write offsets.
+- Bootloader offset for ESP32-S3 is 0 (0x0), partition table 32768
+  (0x8000) unless CONFIG_PARTITION_TABLE_OFFSET changes it. A test in
+  ci-web-flasher.yml fails if any S3 manifest uses 4096 for the
+  bootloader.
+- Include ota_data_initial.bin so the device boots ota_0 after a
+  browser install.
+- Two install modes:
+  * "Fresh install (erase)": new_install_prompt_erase: true, user picks
+    erase -> NVS/LittleFS wiped.
+  * "Update, keep settings": parts mode (bootloader, partition table,
+    otadata, app) — never the merged image, because merge_bin pads the
+    gaps with 0xFF and would overwrite NVS at 0x9000.
+- Example (offsets illustrative; generated in practice):
+  {
+    "name": "PillDispenser Main (dev channel)",
+    "version": "1.4.0-dev.17+g3fa9c2e",
+    "new_install_prompt_erase": true,
+    "builds": [{
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "bootloader.bin",      "offset": 0 },
+        { "path": "partition-table.bin", "offset": 32768 },
+        { "path": "ota_data_initial.bin","offset": 61440 },
+        { "path": "pd-main.bin",         "offset": 65536 }
+      ]
+    }]
+  }
+- A sibling release.json (not in the manifest) carries: version,
+  channel, git SHA, build date, IDF version, SHA256 of every part and
+  of the merged .bin, changelog markdown (from release-please). The page
+  renders these next to the button.
+
+E3. Merged binary (tools/flasher/merge_bin.sh)
+  cd firmware-main/build
+  python -m esptool --chip esp32s3 merge_bin -o pd-main-merged.bin @flash_args
+  (esptool v5 spells it `merge-bin`; detect the version.) The merged
+  .bin is offered as a download for esptool / Espressif Flash Download
+  Tool users at address 0x0, matching Waveshare's own procedure.
+
+E4. Channels
+- stable/: latest non-prerelease Release (dev-config images).
+- beta/: latest prerelease.
+- dev/: last green main build (clearly marked "development").
+- Keep the last 3 versions per channel to stay well under the 1 GB
+  Pages limit; older versions are linked to their GitHub Release.
+- Production-hardened images (secure boot + flash encryption release
+  mode) are NEVER offered on the page. Such devices update via signed
+  OTA only, because a browser flash of plaintext/unsigned images will
+  fail to boot or be rejected, and release mode restricts download
+  mode.
+
+E5. pages.yml
+  permissions: contents: read (build job); pages: write + id-token:
+  write (deploy job only); environment: github-pages.
+  Steps: checkout -> download assets of the latest stable/beta release
+  and last green dev artifact (gh release download / actions/download-
+  artifact) -> gen_manifest.py + gen_release_json.py -> verify SHA256
+  -> build site -> actions/configure-pages@<sha> # v5 ->
+  actions/upload-pages-artifact@<sha> # v4 (path: _site) ->
+  actions/deploy-pages@<sha> # v4.
+  Pages source = "GitHub Actions". The deployment must finish within
+  10 minutes.
+
+E6. Browser support banner (feature-detect `'serial' in navigator`)
+- Supported: desktop Chrome/Edge (89+), Opera; Firefox 151+ desktop
+  (needs the site-permission add-on prompt); Chrome for Android 148+
+  (best-effort, USB-OTG cable).
+- Not supported: Safari (macOS/iOS), Firefox for Android. Show the
+  merged-.bin + esptool instructions instead.
+- Requires HTTPS (Pages provides it; enable "Enforce HTTPS" when using
+  a custom domain).
+
+E7. Download-mode instructions for the Waveshare ESP32-S3-Touch-LCD-4.3B
+  1. Use the USB-C port labelled "UART" (auto-download circuit) with a
+     data-capable cable. Close any serial monitor.
+  2. Click "Install", pick the serial port.
+  3. If the port does not appear or connection fails: unplug the board
+     (and the 7–36 V supply/battery), hold BOOT, plug USB in, release
+     BOOT, then retry.
+  4. After flashing, press RESET (download mode is not exited
+     automatically after a forced boot).
+  5. Linux: add the user to `dialout`; macOS: install the USB-UART
+     driver if the port is missing.
+
+E8. Co-processor (optional section on the page)
+- RP2040: offer the .uf2 with "hold BOOTSEL, plug in, drag the file to
+  RPI-RP2" instructions (verify against Raspberry Pi docs).
+- ESP32-C3: second <esp-web-install-button> with chipFamily "ESP32-C3"
+  manifest generated the same way (C3 bootloader also at 0x0).
+- STM32G0: link to STM32CubeProgrammer instructions; no web flashing.
+
+E9. Also on the page: Android APK download (from the Release, with
+  SHA256), a QR code to the Play/App Distribution link, the setup guide,
+  a "check your firmware version" section, and a privacy note: the page
+  is static, collects no data and never touches eFuses.
+
+=====================================================================
+SECTION F — PHASED DELIVERABLES (updated)
+=====================================================================
+Phase 0   Design doc (architecture, protocol, FMEA, test-plan incl. the
+          QEMU/host/HIL matrix, ci-cd.md, security-keys.md).
+Phase 0.5 Repo scaffolding and CI first: monorepo layout, CODEOWNERS,
+          templates, rulesets, dependabot.yml, codeql.yml,
+          dependency-review.yml, release-please, ci-firmware-main with
+          a hello-world ESP-IDF app that already runs `pytest -m qemu`
+          on esp32s3, host_test skeleton, pages.yml deploying a
+          placeholder flasher. Spikes (each gets a short report):
+          (a) 16 MB flash + 8 MB octal PSRAM under QEMU,
+          (b) esp_lcd_qemu_rgb at 800x480 RGB565 with LVGL,
+          (c) open_eth + mosquitto on 10.0.2.2,
+          (d) OTA + rollback reset under QEMU,
+          (e) flash encryption and secure boot v2 with emulated eFuses
+              on S3 (expected: FE works, SBv2 unknown),
+          (f) firebase-tools WIF auth.
+          Exit: every later phase merges only through green CI.
+Phase 1   Board bring-up via hal_real (LCD, GT911, CH422G, PCF85063,
+          RS485), plus matching hal_sim drivers and HAL contract tests.
+          HIL runner online.
+Phase 2   Scheduler + FSM + offline storage: host CTest + QEMU unit and
+          scenario suites (DST, power-loss replay) required checks.
+Phase 3   Co-processor + mechanism: shared core_protocol, ci-coproc,
+          sim_coproc fault injection in QEMU, HIL jig tests.
+Phase 4   Cloud: rules emulator tests, bridge integration vs mosquitto,
+          QEMU MQTT suite, deploy-cloud with WIF + environments.
+Phase 5   Android MVP: ci-android, signed release in release.yml,
+          optional App Distribution.
+Phase 6   History/refill/inventory/OTA: QEMU OTA rollback suite, SBOM,
+          first tagged release via release-please, web flasher
+          stable/beta/dev channels live with checksums + changelog.
+Phase 7   Hardening: secure boot v2 + flash encryption release
+          ceremony (manual, documented), signing via firmware-signing
+          environment, OTA-only for production units, Scorecard,
+          ESP-IDF v6.x migration when the canary leg is green, FMEA
+          review, penetration checklist.
+
+=====================================================================
+SECTION G — OUTPUT FORMAT (updated) + SECURITY ADDENDA
+=====================================================================
+G1. Output format for the coding assistant
+- Work phase by phase; each phase ends with a PR description that
+  lists: files changed, workflows affected, test evidence (QEMU JUnit
+  summary, host CTest, HIL if applicable), size delta, and the
+  docs/ updates.
+- Every new workflow ships with: trigger list, permissions block,
+  pinned SHAs, timeout, and an "acceptance criteria" comment at the top.
+- Every new test states where it runs (host / qemu / hil) via pytest
+  markers or CTest labels.
+- Never output secrets, keys, or real Firebase project IDs; use
+  placeholders and GitHub `vars`/`secrets` names.
+- Where a fact about QEMU, ESP Web Tools or GitHub limits is assumed
+  rather than verified, write "VERIFY:" in the code comment and add it
+  to docs/ci-cd.md.
+
+G2. Secrets and signing keys
+- Secure boot v2 signing key: never in the repo, never in an artifact,
+  never printed. Preferred: KMS/HSM-held key, accessed from the `sign`
+  job via OIDC (id-token: write) with signing done remotely
+  (espsecure supports HSM/PKCS#11 signing — VERIFY syntax). Fallback:
+  base64 key in an environment secret of `firmware-signing`, decoded
+  to a tmpfs file, used once, shredded; job restricted to tags v* and
+  required reviewers.
+- Keep an offline backup of the signing key (two people, sealed); a
+  lost key means no further OTA for hardened devices.
+- Flash encryption: let each production device generate its own key on
+  first boot (release mode); the key never exists outside the chip,
+  never in CI. Host-generated FE keys are only for QEMU tests and live
+  in test fixtures marked TEST-ONLY.
+- Android: upload keystore + passwords as `android-release` environment
+  secrets; enable Play App Signing.
+- Firebase/GCP: Workload Identity Federation only; no service-account
+  JSON keys; provider attribute condition pinned to this repository.
+- MQTT/TLS: device certificates are provisioned at the bench, never in
+  CI; CI uses a throwaway test CA under test/fixtures.
+
+G3. eFuse rules (hard requirements)
+- CI and HIL runners must never burn real eFuses. `espefuse.py
+  burn_*` / `idf.py efuse-burn*` are allowed only as
+  `idf.py qemu efuse-*` or with `--qemu-efuse-path` in tests;
+  tools/ci/check_no_efuse_burn.sh enforces this on every PR.
+- HIL devices stay in development mode (no secure boot, no FE release
+  mode). Release-mode provisioning is a manual, two-person ceremony
+  documented in docs/security-keys.md with a per-device log.
+- Release sdkconfig is verified by tools/ci/check_release_sdkconfig.py
+  (secure boot v2 on, FE release mode on, JTAG/ROM download policy as
+  designed, PD_HAL_REAL=y, PD_SIM_CONSOLE=n).
+
+G4. Actions hardening
+- Default GITHUB_TOKEN read-only at repo level; "Allow GitHub Actions
+  to create and approve pull requests" off (release-please uses a
+  GitHub App token or the setting is scoped to that workflow only).
+- All actions SHA-pinned; only GitHub-owned, Espressif, Google and
+  explicitly allow-listed actions permitted (org/repo allow-list).
+- No self-hosted runner for public fork PRs; HIL runner is ephemeral or
+  re-imaged regularly and has no cloud credentials.
+- Environments: github-pages, staging, production, firmware-signing,
+  android-release — each with required reviewers except github-pages
+  and staging, and deployment branch/tag rules.

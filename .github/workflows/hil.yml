@@ -1,0 +1,58 @@
+# hil — hardware-in-the-loop on the self-hosted 4.3B runner (spec C10).
+#
+# Acceptance criteria: nightly HIL green before any release tag (enforced
+# manually at Phase 6; cross-workflow check documented in docs/ci-cd.md).
+#
+# Safety rules (spec C10/G3): never triggered by fork PRs; flashes DEV builds
+# only; runner is ephemeral/re-imaged and holds no cloud credentials; HIL
+# devices stay in development mode (no eFuse burns).
+#
+# Gated by vars.ENABLE_HIL (default off until the Phase 1 runner is online).
+name: hil
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+  pull_request:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  hil:
+    name: hil-4.3b tests
+    if: |
+      vars.ENABLE_HIL == 'true' &&
+      (
+        github.event_name != 'pull_request' ||
+        (
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          contains(github.event.pull_request.labels.*.name, 'run-hil')
+        )
+      )
+    runs-on: [self-hosted, hil-4.3b]
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Install test requirements
+        run: python3 -m pip install -r firmware-main/test/requirements.txt
+      - name: Flash DEV build + run HIL suite
+        run: |
+          # Runner pre-requisites (documented in docs/setup-guide.md): ESP-IDF
+          # v5.5.6 sourced, /dev/ttyUSB0 of the 4.3B test jig, DEV builds only.
+          . "$HOME/esp-idf-v5.5.6/export.sh"
+          pytest firmware-main/test -m hil \
+            --embedded-services esp,idf --target esp32s3 \
+            --port /dev/ttyUSB0 \
+            --junitxml=reports/hil.xml -v
+      - name: Upload HIL results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hil-reports
+          path: reports/

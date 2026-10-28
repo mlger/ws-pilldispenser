@@ -1,0 +1,86 @@
+# nightly — canary, soak, SBOM drift (spec Section B).
+#
+# Jobs:
+#  - canary: ESP-IDF v6.1-rc1 build (non-blocking; migration when green).
+#  - idf-dep-drift: component-manager dry-run; opens an issue on drift.
+#  - soak: long QEMU scenario soak (Phase 2+, vars.ENABLE_NIGHTLY_SOAK).
+#  - sbom-check: SBOM vs NVD check (Phase 6+, vars.ENABLE_SBOM_CHECK).
+name: nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  canary:
+    name: canary build (IDF v6.1-rc1, non-blocking)
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1-rc1
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build dev leg on the canary toolchain
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_canary \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" build
+
+  idf-dep-drift:
+    name: component manager drift check
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Dry-run dependency update
+        run: |
+          . "$IDF_PATH/export.sh"
+          cd firmware-main
+          cp dependencies.lock /tmp/dependencies.lock 2>/dev/null || echo "" > /tmp/dependencies.lock
+          # VERIFY: `idf.py update-dependencies` re-resolves managed components;
+          # confirm the dry-run flag name for the pinned component-manager version.
+          idf.py reconfigure || true
+          idf.py update-dependencies || true
+          if ! diff -q /tmp/dependencies.lock dependencies.lock >/dev/null 2>&1; then
+            echo "DRIFT_DETECTED=1" >> "$GITHUB_ENV"
+          fi
+      - name: Open issue on drift
+        if: env.DRIFT_DETECTED == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues" \
+            -d '{"title":"[nightly] ESP-IDF component drift detected","body":"`idf.py update-dependencies` changed `dependencies.lock` on the nightly dry-run. Open a `chore(deps):` PR with the refreshed lock file.","labels":["area/ci"]}'
+
+  soak:
+    name: long QEMU soak (Phase 2+)
+    if: vars.ENABLE_NIGHTLY_SOAK == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Placeholder
+        run: echo "Phase 2 wires the overnight scenario soak here (power-loss replay loops, DST soak)."
+
+  sbom-check:
+    name: SBOM vs NVD check (Phase 6+)
+    if: vars.ENABLE_SBOM_CHECK == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Placeholder
+        run: echo "Phase 6 wires SBOM generation + vulnerability matching here."

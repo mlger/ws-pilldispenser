@@ -1,0 +1,82 @@
+# deploy-cloud — Firebase staging/production deploys (spec C5).
+#
+# Acceptance criteria: production deploy impossible without approval
+# (environment production requires 2 CODEOWNERS of /cloud); rules tests ran
+# green on the same commit (ci-cloud).
+#
+# Gated by vars.ENABLE_CLOUD_DEPLOY (default off at Phase 0.5; flipped in
+# Phase 4 together with the WIF configuration).
+name: deploy-cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloud/**'
+      - '.github/workflows/deploy-cloud.yml'
+  release:
+    types: [published]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  staging:
+    name: deploy to staging
+    if: vars.ENABLE_CLOUD_DEPLOY == 'true' && hashFiles('cloud/**/package.json') != '' && github.event_name == 'push'
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Authenticate via Workload Identity Federation
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - name: Auth check
+        run: |
+          npx --yes firebase-tools@13 projects:list --non-interactive
+          # Known issue: firebase-tools v15 has reports of ignoring WIF ADC
+          # (firebase-tools#10726). If hit, pin the last working version here and
+          # document in docs/ci-cd.md (spec C5).
+      - name: Deploy
+        run: |
+          npx --yes firebase-tools@13 deploy \
+            --only firestore:rules,firestore:indexes,functions \
+            --project "$GCP_PROJECT_ID" --non-interactive
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_STAGING_PROJECT_ID }}
+
+  production:
+    name: deploy to production (2 approvals required)
+    if: vars.ENABLE_CLOUD_DEPLOY == 'true' && hashFiles('cloud/**/package.json') != '' && github.event_name == 'release'
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Authenticate via Workload Identity Federation
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - name: Auth check
+        run: npx --yes firebase-tools@13 projects:list --non-interactive
+      - name: Deploy
+        run: |
+          npx --yes firebase-tools@13 deploy \
+            --only firestore:rules,firestore:indexes,functions \
+            --project "$GCP_PROJECT_ID" --non-interactive
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PRODUCTION_PROJECT_ID }}

@@ -1,0 +1,68 @@
+# ci-web-flasher — validate the static flasher site and any generated
+# manifests (spec E).
+#
+# Acceptance criteria: index.html present, ESP Web Tools pin intact, any
+# manifest.json parses and uses the ESP32-S3 bootloader offset 0x0 (never
+# 0x1000), release.json (if present) parses.
+name: ci-web-flasher
+
+on:
+  pull_request:
+    paths:
+      - 'web-flasher/**'
+      - 'tools/flasher/**'
+      - '.github/workflows/ci-web-flasher.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'web-flasher/**'
+      - 'tools/flasher/**'
+      - '.github/workflows/ci-web-flasher.yml'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    name: validate flasher site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Site sanity
+        run: |
+          test -f web-flasher/index.html
+          grep -q 'esp-web-tools@10.4.0' web-flasher/index.html \
+            || { echo "ESP Web Tools 10.4.0 pin missing"; exit 1; }
+          grep -q 'stable/manifest.json' web-flasher/index.html \
+            || { echo "stable manifest button missing"; exit 1; }
+      - name: Manifest offsets check (spec E2)
+        run: |
+          python3 - <<'EOF'
+          import json, glob, sys
+          bad = 0
+          for m in glob.glob('web-flasher/**/manifest.json', recursive=True):
+              data = json.load(open(m))
+              for build in data.get('builds', []):
+                  if build.get('chipFamily') != 'ESP32-S3':
+                      continue
+                  for part in build.get('parts', []):
+                      if part['path'].startswith('bootloader') and part['offset'] not in (0,):
+                          print(f"FAIL {m}: S3 bootloader offset must be 0, got {part['offset']}")
+                          bad += 1
+          sys.exit(1 if bad else 0)
+          EOF
+      - name: release.json sanity
+        run: |
+          python3 - <<'EOF'
+          import json, glob
+          for r in glob.glob('web-flasher/**/release.json', recursive=True):
+              data = json.load(open(r))
+              assert data.get('channel') in ('stable', 'beta', 'dev'), r
+              assert data.get('version'), r
+          print("release.json files OK")
+          EOF

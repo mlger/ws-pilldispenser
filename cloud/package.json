@@ -1,0 +1,9 @@
+{
+  "name": "@pd/cloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PillDispenser cloud: Firebase functions, bridge worker, Firestore rules (Phase 4).",
+  "scripts": {
+    "test": "echo 'Phase 4: firebase emulators:exec --only firestore \"npm test\"' && exit 0"
+  }
+}

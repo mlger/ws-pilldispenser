@@ -1,0 +1,143 @@
+# release — build, sign and publish release assets (spec C8).
+#
+# Acceptance criteria: a tag produces all assets + checksums + SBOM +
+# provenance; no signing key ever appears in logs or artifacts.
+#
+# Gated by the repository variable ENABLE_RELEASE_PIPELINE (default off at
+# Phase 0.5; flipped to true in Phase 6 — docs/ci-cd.md variable switch table).
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  notice:
+    name: pipeline disabled notice
+    if: vars.ENABLE_RELEASE_PIPELINE != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain skip
+        run: |
+          echo "::notice::Release pipeline is disabled (vars.ENABLE_RELEASE_PIPELINE != 'true'). It activates in Phase 6."
+
+  build-release:
+    name: build release-unsigned images
+    if: vars.ENABLE_RELEASE_PIPELINE == 'true'
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build with sdkconfig.release (unsigned)
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_release -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.release" build
+      - name: Upload unsigned images
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-unsigned
+          retention-days: 7
+          path: |
+            firmware-main/build_release/bootloader/bootloader.bin
+            firmware-main/build_release/partition_table/partition-table.bin
+            firmware-main/build_release/*.bin
+            firmware-main/build_release/flasher_args.json
+            firmware-main/build_release/flash_args
+
+  sign:
+    name: sign production images
+    needs: build-release
+    if: vars.ENABLE_RELEASE_PIPELINE == 'true'
+    runs-on: ubuntu-latest
+    environment: firmware-signing
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Download unsigned images
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-unsigned
+          path: build_release
+      - name: Sign (key via KMS/HSM or environment secret — never logged)
+        env:
+          # Preferred: OIDC + KMS/HSM-held key (spec G2). Fallback: base64
+          # environment secret decoded to tmpfs by tools/release/sign_images.sh.
+          SECURE_BOOT_KEY_B64: ${{ secrets.SECURE_BOOT_KEY_B64 }}
+        run: |
+          echo "Phase 7 ceremony: tools/release/sign_images.sh wired to the KMS/HSM path"
+          echo "This job requires reviewer approval (environment firmware-signing)."
+
+  build-dev-images:
+    name: build dev-channel images (no secure boot)
+    if: vars.ENABLE_RELEASE_PIPELINE == 'true'
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.6
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Make repo safe for container git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build dev images
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_dev -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" build
+      - name: Merge binary + generate manifest
+        run: |
+          . "$IDF_PATH/export.sh"
+          pip install esptool
+          bash tools/flasher/merge_bin.sh firmware-main/build_dev
+          python3 tools/flasher/gen_manifest.py --build-dir firmware-main/build_dev \
+            --version "$GITHUB_REF_NAME" --out manifest.json --copy
+      - name: Upload dev-channel assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dev-images
+          retention-days: 30
+          path: |
+            firmware-main/build_dev/pd-main-merged.bin
+            manifest.json
+            *.bin
+
+  package-assets:
+    name: checksums, SBOM, provenance, upload
+    needs: [sign, build-dev-images]
+    if: vars.ENABLE_RELEASE_PIPELINE == 'true'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Download all artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          merge-multiple: true
+          path: assets
+      - name: SBOM
+        run: |
+          echo "Phase 6: idf.py sbom-create on the release build -> *.spdx"
+      - name: SHA256SUMS
+        working-directory: assets
+        run: find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: assets/*.bin
+      - name: Upload assets to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" assets/* --clobber

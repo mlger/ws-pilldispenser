@@ -1,0 +1,13 @@
+# Production release configuration (spec A2/A3): secure boot v2 + flash
+# encryption RELEASE mode, REAL backend, no sim console. Signing happens in the
+# `firmware-signing` CI environment (docs/security-keys.md) — this file only
+# turns the features on; CI builds from it are unsigned ("release-unsigned").
+# Validated by tools/ci/check_release_sdkconfig.py.
+CONFIG_PD_HAL_REAL=y
+CONFIG_PD_SIM_CONSOLE=n
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+CONFIG_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y
+CONFIG_FLASH_ENCRYPTION_ENABLED=y
+CONFIG_FLASH_ENCRYPTION_MODE_RELEASE=y
+CONFIG_SECURE_DISABLE_JTAG=y

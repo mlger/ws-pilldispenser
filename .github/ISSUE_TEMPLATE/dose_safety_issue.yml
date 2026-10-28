@@ -1,0 +1,55 @@
+name: Dose safety issue
+description: Missed dose, double dose, or wrong-time dispense. Triaged P0.
+title: "[dose-safety] "
+labels: ["safety", "P0"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dose-safety reports block releases. docs/fmea.md must be updated with the
+        resolution (see the PR template question "FMEA updated?").
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Missed dose (scheduled dose never dispensed)
+        - Double dose (same slot dispensed twice)
+        - Wrong time (dispensed at incorrect time / DST problem)
+        - Wrong count (incorrect number of pills)
+        - Other dose-timing/count deviation
+    validations:
+      required: true
+  - type: input
+    id: board_rev
+    attributes:
+      label: Board revision
+      placeholder: "Waveshare ESP32-S3-Touch-LCD-4.3B rev x.x"
+    validations:
+      required: true
+  - type: input
+    id: fw_version
+    attributes:
+      label: Firmware version (About screen / MQTT telemetry)
+      placeholder: "1.4.0"
+    validations:
+      required: true
+  - type: input
+    id: app_version
+    attributes:
+      label: Android app version (if involved)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / serial capture
+      description: Sanitized console output around the event. Include `FSM:` and `PD_` markers.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps and timezone context
+      description: Include device timezone, DST transition dates if relevant.
+    validations:
+      required: true
