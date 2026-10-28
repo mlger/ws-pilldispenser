@@ -59,7 +59,7 @@ jobs:
             firmware-main/components/core_scheduler \
             firmware-main/components/core_fsm \
             firmware-main/components/core_inventory \
-            firmware-main/components/hal \
+            firmware-main/components/pd_hal \
             firmware-main/components/hal_real \
             firmware-main/components/hal_sim
       - name: eFuse policy (no real burns, spec G3)
