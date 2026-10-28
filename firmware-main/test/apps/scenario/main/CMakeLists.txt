@@ -3,4 +3,4 @@
 # `console` = esp_console in IDF v5.5.x naming.
 idf_component_register(SRCS "scenario_main.c"
                        INCLUDE_DIRS "."
-                       REQUIRES hal hal_real hal_sim console esp_app_format log)
+                       REQUIRES pd_hal hal_real hal_sim console esp_app_format log)

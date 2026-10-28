@@ -13,7 +13,7 @@ Every line of business logic runs in three places with **zero `#ifdef`s** in app
 | Real Waveshare 4.3B board | `hal_real` (`CONFIG_PD_HAL_REAL=y`) | HIL suite on self-hosted runner (marker `hil`) |
 
 The backend is selected at build time by the Kconfig choice `PD_HAL_BACKEND`
-(`firmware-main/components/hal/Kconfig`). Deterministic test markers (e.g. `PD_READY`,
+(`firmware-main/components/pd_hal/Kconfig`). Deterministic test markers (e.g. `PD_READY`,
 `FSM: <state>`) are gated behind `CONFIG_PD_TEST_HOOKS`.
 
 ## Repository layout

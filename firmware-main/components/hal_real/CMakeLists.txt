@@ -3,7 +3,7 @@
 # NOTE: no public INCLUDE_DIRS — the HAL contracts live in components/hal.
 if(CONFIG_PD_HAL_REAL)
     idf_component_register(SRCS "src/hal_real_stub.c"
-                           REQUIRES hal log)
+                           REQUIRES pd_hal log)
 else()
     idf_component_register()
 endif()

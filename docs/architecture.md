@@ -71,7 +71,7 @@ driving the optocoupler-isolated DO lines used by the dispense-related periphera
              calls hal_*.h only            |    calls core_* APIs directly
                                            v
    +---------------------------+   +---------------------------------+
-   | components/hal            |   | components/core_scheduler       |
+   | components/pd_hal            |   | components/core_scheduler       |
    | interface headers only:   |   | components/core_fsm             |
    | hal_display, hal_touch,   |   | components/core_protocol        |
    | hal_ioexp, hal_rtc,       |   | components/core_inventory       |
