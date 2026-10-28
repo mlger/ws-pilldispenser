@@ -165,12 +165,21 @@ jobs:
           . "$IDF_PATH/export.sh"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git checkout -q "$BASE_SHA"
-          idf.py -B build_base_dev \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" build
-          idf.py -B build_base_dev size --format json > size_base.json
+          # A base that does not build (e.g. during the bootstrap PR itself)
+          # skips the comparison with a warning instead of failing the PR.
+          if idf.py -B build_base_dev \
+            -DSDKCONFIG=build_base_dev/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" \
+            build; then
+            idf.py -B build_base_dev size --format json > size_base.json
+          else
+            echo "BASE_NOT_BUILDABLE=true" >> "$GITHUB_ENV"
+            echo "::warning::base commit does not build; size comparison skipped"
+          fi
           cp ../head-artifacts/size_dev.json size_head.json 2>/dev/null || true
           [ -f size_head.json ] || idf.py -B build_head_placeholder size --format json > size_head.json
       - name: Compare sizes
+        if: env.BASE_NOT_BUILDABLE != 'true'
         env:
           ALLOW_GROWTH: ${{ contains(github.event.pull_request.labels.*.name, 'size-ok') }}
         working-directory: firmware-main
@@ -198,10 +207,11 @@ jobs:
           python "$IDF_PATH/tools/idf_tools.py" install qemu-xtensa
       - name: Install pytest-embedded (pinned)
         run: |
-          python3 -m pip install -r firmware-main/test/requirements.txt
+          . "$IDF_PATH/export.sh"
           # pytest-embedded 2.x shells out to `esptool.py merge-bin` (v5 CLI);
           # the IDF image ships esptool 4.x, which would fail the image build.
-          python3 -m pip install -U esptool
+          python -m pip install -r firmware-main/test/requirements.txt
+          python -m pip install -U esptool
       - name: Build unit test app
         working-directory: firmware-main/test/apps/unit
         run: |
@@ -250,16 +260,21 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Make repo safe for container git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Build dev app
+        working-directory: firmware-main
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build_dev -DSDKCONFIG=build_dev/sdkconfig \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" \
+            build
       - name: Generate SBOM
         working-directory: firmware-main
         run: |
           . "$IDF_PATH/export.sh"
-          python3 -m pip install esp-idf-sbom
-          # VERIFY: confirm the `sbom-create` command name in the pinned esp-idf-sbom
-          # version; the extension also registers `idf.py sbom` aliases in some versions.
-          idf.py -B build_dev \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3;sdkconfig.ci.dev" \
-            sbom-create -o pd-main.spdx
+          python -m pip install esp-idf-sbom
+          # esp-idf-sbom 1.5.x: the idf.py action takes --file (not -o) and
+          # requires a completed build (dependencies: [app]).
+          idf.py -B build_dev sbom-create --file pd-main.spdx
       - name: Upload SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
