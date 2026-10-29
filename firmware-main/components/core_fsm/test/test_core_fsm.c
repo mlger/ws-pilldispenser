@@ -4,10 +4,6 @@
 #include "core_fsm.h"
 #include "unity.h"
 
-void setUp(void) {}
-
-void tearDown(void) {}
-
 static pd_fsm_ctx_t fresh_ctx(uint8_t slot) {
     pd_fsm_ctx_t ctx = {0};
     ctx.state = PD_FSM_IDLE;

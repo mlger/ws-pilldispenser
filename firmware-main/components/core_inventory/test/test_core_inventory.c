@@ -7,10 +7,6 @@
 #include "core_inventory.h"
 #include "unity.h"
 
-void setUp(void) {}
-
-void tearDown(void) {}
-
 TEST_CASE("init and take", "[core_inventory]") {
     pd_inventory_t inv;
     TEST_ASSERT_TRUE(pd_inv_init(&inv, 4));

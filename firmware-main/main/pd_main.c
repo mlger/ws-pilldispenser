@@ -1,26 +1,30 @@
+/*
+ * PillDispenser main application — Phase 2: board bring-up through the
+ * selected HAL backend plus the offline dose pipeline (storage journal, FSM
+ * service, scheduler service). Bring-up and service failures are logged,
+ * never panicked, so a half-wired bench board still reaches the console
+ * (FMEA-02: no boot-time hard faults).
+ */
 #include <stdio.h>
 
 #include "esp_app_desc.h"
 #include "esp_idf_version.h"
 #include "esp_log.h"
 
+#include "core_fsm.h"
+#include "fsm_svc.h"
 #include "hal_buzzer.h"
 #include "hal_coproc.h"
 #include "hal_display.h"
 #include "hal_ioexp.h"
 #include "hal_rtc.h"
 #include "hal_touch.h"
+#include "scheduler_svc.h"
+#include "storage.h"
 #if CONFIG_PD_SIM_CONSOLE
 #include "sim_console.h"
 #endif
 
-/*
- * Phase 1 main application: board bring-up through the selected HAL backend,
- * the deterministic PD_READY marker expected by the QEMU smoke test, and
- * (SIM backend only) the `sim ...` console. Scheduler/FSM wiring lands in
- * Phase 2 — bring-up failures are logged, never panicked, so a half-wired
- * bench board still reaches the console (FMEA-02: no boot-time hard faults).
- */
 static const char *TAG = "pd_main";
 
 #define BRING_UP(name, call)                                                                       \
@@ -29,6 +33,11 @@ static const char *TAG = "pd_main";
         ESP_LOGI(TAG, "bring-up %-10s rc=%d (%s)", name, (int)st_,                                 \
                  st_ == PD_HAL_OK ? "ok" : "deferred");                                            \
     } while (0)
+
+static void on_dose_due(uint8_t slot_id, uint64_t dose_key, void *user) {
+    (void)user;
+    (void)pd_fsm_svc_dose_due(slot_id, dose_key);
+}
 
 void app_main(void) {
     const esp_app_desc_t *app = esp_app_get_description();
@@ -49,6 +58,21 @@ void app_main(void) {
         bool rtc_valid = false;
         (void)pd_hal_rtc_valid(&rtc_valid);
         ESP_LOGI(TAG, "rtc time=%lld valid=%d", (long long)now, (int)rtc_valid);
+    }
+
+    /* Offline dose pipeline (Phase 2). Storage failure degrades to a
+     * no-journal mode: the FSM service still runs but the FMEA-04 replay
+     * guarantee is logged as unavailable. */
+    if (pd_storage_init() != 0) {
+        ESP_LOGE(TAG, "storage init failed; journal/dedup disabled");
+    }
+    (void)pd_fsm_svc_inventory_init(8);
+    if (pd_fsm_svc_start() != 0) {
+        ESP_LOGE(TAG, "fsm service start failed");
+    }
+    (void)pd_sched_svc_set_tz("UTC0");
+    if (pd_sched_svc_start(on_dose_due, NULL) != 0) {
+        ESP_LOGE(TAG, "scheduler service start failed");
     }
 
 #if CONFIG_PD_TEST_HOOKS

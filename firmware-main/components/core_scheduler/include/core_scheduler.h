@@ -22,6 +22,11 @@ extern "C" {
 
 #define PD_SCHED_MAX_SLOTS 32
 
+/* Catch-up clamp for pd_sched_first_due_in_window(): occurrences older than
+ * this many seconds before end_incl are deliberately skipped (the device was
+ * off or the clock jumped; firing multi-day-old doses late is not safe). */
+#define PD_SCHED_WINDOW_MAX ((time_t)(2 * 24 * 60 * 60))
+
 typedef enum {
     PD_SCHED_ONCE = 0,
     PD_SCHED_DAILY = 1,
@@ -49,6 +54,20 @@ bool pd_sched_is_due(const pd_sched_slot_t *slot, time_t t);
 
 /* Render `t` in the active local time as "YYYY-MM-DDTHH:MM:SS" (needs >= 20 bytes). */
 void pd_sched_format_iso(time_t t, char *buf, size_t buf_len);
+
+/* Wall-clock dose key for the minute containing `t`: local YYYYMMDDHHMM packed
+ * as decimal digits (2026-03-29 03:00 -> 202603290300ull). Two occurrences map
+ * to the same key iff they are the same local wall minute — this is what makes
+ * the fall-back overlap (one wall time happening twice) a single dose, and what
+ * the journal/dedup guards persist. Returns 0 for invalid input. */
+uint64_t pd_sched_dose_key(time_t t);
+
+/* First occurrence of the slot strictly after start_excl and at or before
+ * end_incl, or (time_t)-1. Minute-granularity scan; the effective window is
+ * clamped to the PD_SCHED_WINDOW_MAX seconds before end_incl so a large clock
+ * jump cannot fire arbitrarily old doses. */
+time_t pd_sched_first_due_in_window(const pd_sched_slot_t *slot, time_t start_excl,
+                                    time_t end_incl);
 
 #ifdef __cplusplus
 }

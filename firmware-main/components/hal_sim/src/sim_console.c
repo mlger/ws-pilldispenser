@@ -76,14 +76,14 @@ static int cmd_sim(int argc, char **argv) {
         if (argc == 4 && strcmp(argv[2], "fault") == 0) {
             if (strcmp(argv[3], "crc") == 0) {
                 sim_coproc_set_fault(SIM_COPROC_FAULT_CRC);
-            } else if (strcmp(argv[3], "timeout") == 0) {
+            } else if (strcmp(argv[3], "timeout") == 0 || strcmp(argv[3], "no-ack") == 0) {
                 sim_coproc_set_fault(SIM_COPROC_FAULT_TIMEOUT);
             } else if (strcmp(argv[3], "jam") == 0) {
                 sim_coproc_set_fault(SIM_COPROC_FAULT_JAM);
             } else if (strcmp(argv[3], "empty") == 0) {
                 sim_coproc_set_fault(SIM_COPROC_FAULT_EMPTY);
             } else {
-                ESP_LOGW(TAG, "unknown fault '%s' (crc|timeout|jam|empty)", argv[3]);
+                ESP_LOGW(TAG, "unknown fault '%s' (crc|timeout|no-ack|jam|empty)", argv[3]);
                 return 1;
             }
             return 0;
@@ -142,5 +142,13 @@ esp_err_t sim_console_start(void) {
     if (err != ESP_OK) {
         return err;
     }
-    return esp_console_start_repl(repl);
+    err = esp_console_start_repl(repl);
+    if (err == ESP_OK) {
+        /* Deterministic marker: console input is now being drained. QEMU
+         * scenario tests gate their first dut.write() on this line, otherwise
+         * commands arriving before the REPL task runs are lost in the UART
+         * FIFO. */
+        ESP_LOGI(TAG, "SIM: console ready");
+    }
+    return err;
 }

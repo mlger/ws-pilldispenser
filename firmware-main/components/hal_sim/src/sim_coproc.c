@@ -1,10 +1,20 @@
 /*
  * sim_coproc — in-process co-processor model speaking real PD-Link v1 frames
- * (spec A1). pd_hal_coproc_send decodes the transmitted frame and, with
- * auto-ack on, enqueues the response a real mechanism would (ACK with matching
- * SEQ). Fault injection (`sim coproc fault <type>`) covers the FMEA cases:
- * CRC corruption, total timeout, jam and empty events. The FSM suite drives
- * this from QEMU in Phase 2/3; the codec itself is core_protocol.
+ * (spec A1, docs/protocol.md section 8). pd_hal_coproc_send decodes the
+ * transmitted frame and models a real mechanism:
+ *
+ *   DISPENSE_REQ -> ACK(seq_acked) immediately (auto-ack on), mechanism busy;
+ *   STATUS_REQ   -> STATUS_RESP{state, jam, empty, reserved}: busy on the
+ *                   first poll after a dispense request, idle on the next,
+ *                   which is how the FSM observes COMPLETE (protocol.md 7).
+ *
+ * Fault injection (`sim coproc fault <type>`) covers the FMEA cases:
+ *   crc     every queued response carries a corrupted CRC (receiver drops,
+ *           sender retries)
+ *   timeout no response at all (also accepted as `no-ack`); FSM TIMEOUT after
+ *           the retry budget
+ *   jam     STATUS_RESP reports jam=1 (FSM: DISPENSING -> FAULT)
+ *   empty   STATUS_RESP reports empty=1 (FSM: DISPENSING -> FAILED)
  */
 #include <stdbool.h>
 #include <stdint.h>
@@ -31,6 +41,7 @@ static size_t s_count;
 
 static bool s_auto_ack;
 static sim_coproc_fault_t s_fault;
+static bool s_busy; /* mechanism running a dispense (first STATUS poll reports it) */
 
 void sim_coproc_set_auto_ack(bool on) {
     s_auto_ack = on;
@@ -71,8 +82,17 @@ static bool coproc_enqueue(const pd_frame_t *frame) {
     const size_t idx = (s_head + s_count) % SIM_COPROC_QUEUE_LEN;
     memcpy(s_queue[idx].bytes, wire, len);
     s_queue[idx].len = len;
+    if (s_fault == SIM_COPROC_FAULT_CRC) {
+        /* Corrupt the final CRC byte of every queued response (receiver-side
+         * contract: silently drop, sender-side: retry). */
+        s_queue[idx].bytes[len - 1] ^= 0xFFu;
+    }
     s_count++;
     return true;
+}
+
+static bool fault_silent(void) {
+    return s_fault == SIM_COPROC_FAULT_TIMEOUT;
 }
 
 pd_hal_status_t pd_hal_coproc_init(void) {
@@ -80,6 +100,7 @@ pd_hal_status_t pd_hal_coproc_init(void) {
     s_count = 0;
     s_auto_ack = false;
     s_fault = SIM_COPROC_FAULT_NONE;
+    s_busy = false;
     ESP_LOGI(TAG, "SIM_COPROC: init (auto-ack off, no faults)");
     return PD_HAL_OK;
 }
@@ -97,32 +118,41 @@ pd_hal_status_t pd_hal_coproc_send(const uint8_t *buf, size_t len) {
         return PD_HAL_ERR_INVALID_ARG;
     }
 
-    switch (s_fault) {
-    case SIM_COPROC_FAULT_JAM: {
-        pd_frame_t ev = {.type = PD_FRAME_JAM_EVENT, .seq = frame.seq, .payload_len = 0};
-        coproc_enqueue(&ev);
-        break;
-    }
-    case SIM_COPROC_FAULT_EMPTY: {
-        pd_frame_t ev = {.type = PD_FRAME_EMPTY_EVENT, .seq = frame.seq, .payload_len = 0};
-        coproc_enqueue(&ev);
-        break;
-    }
-    default:
-        break;
+    if (frame.type == PD_FRAME_DISPENSE_REQ) {
+        /* Duplicate suppression (protocol.md 6): a retransmitted request is
+         * re-ACKed without repeating the mechanical action - s_busy stays set
+         * so completion is reported exactly once. */
+        if (s_auto_ack && !fault_silent()) {
+            pd_frame_t ack = {
+                .type = PD_FRAME_ACK, .seq = frame.seq, .payload_len = 1, .payload[0] = frame.seq};
+            if (coproc_enqueue(&ack)) {
+                ESP_LOGI(TAG, "SIM_COPROC: queued ACK seq=%02x", frame.seq);
+            }
+        }
+        s_busy = true;
+        return PD_HAL_OK;
     }
 
-    if (s_auto_ack && s_fault != SIM_COPROC_FAULT_TIMEOUT) {
-        pd_frame_t ack = {.type = PD_FRAME_ACK, .seq = frame.seq, .payload_len = 0};
-        if (coproc_enqueue(&ack)) {
-            if (s_fault == SIM_COPROC_FAULT_CRC) {
-                /* Corrupt the CRC bytes of the queued response. */
-                const size_t idx = (s_head + s_count - 1) % SIM_COPROC_QUEUE_LEN;
-                s_queue[idx].bytes[s_queue[idx].len - 1] ^= 0xFFu;
-            }
-            ESP_LOGI(TAG, "SIM_COPROC: queued ACK seq=%02x", frame.seq);
+    if (frame.type == PD_FRAME_STATUS_REQ) {
+        if (fault_silent()) {
+            return PD_HAL_OK;
         }
+        pd_frame_t resp = {.type = PD_FRAME_STATUS_RESP,
+                           .seq = frame.seq,
+                           .payload_len = 4,
+                           .payload[0] = s_busy ? 1u : 0u,
+                           .payload[1] = (s_fault == SIM_COPROC_FAULT_JAM) ? 1u : 0u,
+                           .payload[2] = (s_fault == SIM_COPROC_FAULT_EMPTY) ? 1u : 0u,
+                           .payload[3] = 0u /* reserved; error counters future work */};
+        if (coproc_enqueue(&resp)) {
+            ESP_LOGI(TAG, "SIM_COPROC: queued STATUS_RESP state=%u jam=%u empty=%u",
+                     (unsigned)resp.payload[0], (unsigned)resp.payload[1],
+                     (unsigned)resp.payload[2]);
+        }
+        s_busy = false; /* first poll reports busy, the next one reports done */
+        return PD_HAL_OK;
     }
+
     return PD_HAL_OK;
 }
 

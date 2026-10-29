@@ -30,9 +30,9 @@ void sim_touch_inject(int x, int y, bool pressed);
 typedef enum {
     SIM_COPROC_FAULT_NONE = 0,
     SIM_COPROC_FAULT_CRC = 1,     /* responses carry a corrupted CRC */
-    SIM_COPROC_FAULT_TIMEOUT = 2, /* no response at all */
-    SIM_COPROC_FAULT_JAM = 3,     /* mechanism reports a jam event */
-    SIM_COPROC_FAULT_EMPTY = 4,   /* mechanism reports an empty event */
+    SIM_COPROC_FAULT_TIMEOUT = 2, /* no response at all (alias: no-ack) */
+    SIM_COPROC_FAULT_JAM = 3,     /* STATUS_RESP reports jam=1 */
+    SIM_COPROC_FAULT_EMPTY = 4,   /* STATUS_RESP reports empty=1 */
 } sim_coproc_fault_t;
 
 void sim_coproc_set_auto_ack(bool on);

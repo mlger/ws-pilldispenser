@@ -70,9 +70,9 @@ Flashing the real board and the browser flasher are covered in
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 0 | Design docs (this `docs/` set) | done |
-| 0.5 | Repo scaffolding, CI green, host tests, QEMU smoke, placeholder flasher | **this drop** |
-| 1 | Board bring-up (`hal_real` + drivers) + HAL contract tests | **this drop** (HIL runner lands with the bench) |
-| 2 | Scheduler + FSM + offline storage | pending |
+| 0.5 | Repo scaffolding, CI green, host tests, QEMU smoke, placeholder flasher | done |
+| 1 | Board bring-up (`hal_real` + drivers) + HAL contract tests | done (HIL runner lands with the bench) |
+| 2 | Scheduler + FSM + offline storage | **this drop** (dose pipeline green on host + QEMU; MQTT queue is Phase 4) |
 | 3 | Co-processor + mechanism | pending |
 | 4 | Cloud (rules, bridge, MQTT) | pending |
 | 5 | Android MVP | pending |

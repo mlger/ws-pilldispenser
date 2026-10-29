@@ -213,4 +213,4 @@ Repository-level workflows: `codeql`, `dependency-review`, `scorecard`, `release
 | --- | --- | --- |
 | Co-processor MCU | RP2040 / ESP32-C3 / STM32G0 | end of Phase 2, before `ci-coproc` is finalized |
 | LVGL version pin | LVGL 8.x LTS vs 9.x | Phase 0.5 spike (b): `esp_lcd_qemu_rgb` + LVGL at 800x480 |
-| LittleFS vs FATFS | LittleFS (journal, wear leveling) vs FATFS (host interoperability) | Phase 2, when `storage` lands |
+| LittleFS vs FATFS vs NVS | Dose journal, slot config and key-dedup persist in **NVS** (atomic small writes, no filesystem dependency); the `littlefs` partition stays reserved for bulk history/logs in Phase 6 | **decided for Phase 2**; revisit for bulk storage in Phase 6 |
