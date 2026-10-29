@@ -101,8 +101,13 @@ Verified against GitHub; Dependabot keeps them current.
 - When the canary leg is green across the full suite (unit, scenario, MQTT,
   OTA, UI), a migration PR bumps the baseline; per Section F this lands in
   Phase 7 ("ESP-IDF v6.x migration when the canary leg is green").
-- The IDF component manager is not covered by Dependabot; `nightly.yml` runs
-  `idf.py update-dependencies` as a dry run and opens an issue on drift.
+- The IDF component manager is not covered by Dependabot; `nightly.yml`
+  guards it by regenerating `dependencies.lock` with the canonical config
+  chain (`sdkconfig.defaults;sdkconfig.defaults.esp32s3`) and diffing it
+  against the tracked baseline `firmware-main/dependencies.lock`
+  (target esp32s3). The pinned component-manager version has no dry-run
+  flag, so the dry run is implemented as regenerate-then-diff in the
+  ephemeral workspace; drift opens an issue and never blocks merges.
 
 ## 6. Branch protection and required checks
 
