@@ -1,7 +1,7 @@
 {
-  "firmware-main": "0.1.0",
+  "firmware-main": "0.2.0",
   "firmware-coproc": "0.1.0",
   "android-app": "0.1.0",
-  "cloud": "0.1.0",
+  "cloud": "0.1.1",
   "web-flasher": "0.1.0"
 }
