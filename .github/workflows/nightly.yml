@@ -50,10 +50,12 @@ jobs:
           . "$IDF_PATH/export.sh"
           cd firmware-main
           cp dependencies.lock /tmp/dependencies.lock 2>/dev/null || echo "" > /tmp/dependencies.lock
-          # VERIFY: `idf.py update-dependencies` re-resolves managed components;
-          # confirm the dry-run flag name for the pinned component-manager version.
-          idf.py reconfigure || true
-          idf.py update-dependencies || true
+          # Regenerate with the project's canonical config chain (same as the
+          # build jobs). A bare reconfigure would default to target esp32 and
+          # rewrite dependencies.lock with the wrong target, reporting drift
+          # every night (false positive, see #10).
+          idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3" reconfigure || true
+          idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3" update-dependencies || true
           if ! diff -q /tmp/dependencies.lock dependencies.lock >/dev/null 2>&1; then
             echo "DRIFT_DETECTED=1" >> "$GITHUB_ENV"
           fi

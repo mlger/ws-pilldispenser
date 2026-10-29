@@ -11,7 +11,10 @@ out/
 sdkconfig
 sdkconfig.old
 sdkconfig.ci
-dependencies.lock
+# dependencies.lock IS tracked on purpose: it is the nightly component-drift
+# baseline (firmware-main/). Do not re-ignore it.
+# Test apps resolve their own components independently -> not part of the baseline.
+firmware-main/test/apps/*/dependencies.lock
 managed_components/
 version.inc
 project_description.json
