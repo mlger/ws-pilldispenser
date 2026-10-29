@@ -69,7 +69,20 @@ pd_hal_status_t pd_hal_rtc_valid(bool *out_valid) {
     return PD_HAL_OK;
 }
 
-/* Parse "YYYY-MM-DDTHH:MM:SS" into an epoch using the active TZ. */
+/* Days since 1970-01-01 for a proleptic Gregorian civil date
+ * (Howard Hinnant's days_from_civil). Portable, TZ- and mktime-free. */
+static int64_t days_from_civil(int y, unsigned m, unsigned d) {
+    y -= (m <= 2) ? 1 : 0;
+    const int64_t era = (y >= 0 ? y : y - 399) / 400;
+    const unsigned yoe = (unsigned)(y - era * 400); /* [0, 399] */
+    const unsigned doy = (153u * (m + (m > 2 ? -3u : 9u)) + 2u) / 5u + d - 1u;
+    const unsigned doe = yoe * 365u + yoe / 4u - yoe / 100u + doy;
+    return era * 146097 + (int64_t)doe - 719468;
+}
+
+/* Parse "YYYY-MM-DDTHH:MM:SS" into an epoch. A trailing 'Z' (or "+00:00")
+ * means UTC and is converted with the civil-date math above; without it the
+ * string is interpreted in the active TZ via mktime (local wall time). */
 bool sim_rtc_parse_iso(const char *iso, time_t *out_epoch) {
     if (iso == NULL || out_epoch == NULL) {
         return false;
@@ -82,6 +95,21 @@ bool sim_rtc_parse_iso(const char *iso, time_t *out_epoch) {
     }
     t.tm_year -= 1900;
     t.tm_mon -= 1;
+
+    const char *tail = iso + consumed;
+    while (*tail == ' ') {
+        tail++;
+    }
+    const bool is_utc = (tail[0] == 'Z' || tail[0] == 'z' || strncmp(tail, "+00:00", 6) == 0);
+
+    if (is_utc) {
+        const int64_t days =
+            days_from_civil(t.tm_year + 1900, (unsigned)t.tm_mon + 1, (unsigned)t.tm_mday);
+        const int64_t secs = days * 86400 + t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec;
+        *out_epoch = (time_t)secs;
+        return *out_epoch >= 0;
+    }
+
     t.tm_isdst = -1;
     *out_epoch = mktime(&t);
     return *out_epoch != (time_t)-1;

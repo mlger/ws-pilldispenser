@@ -213,8 +213,8 @@ frames, available from Phase 0.5 and driven from the QEMU console
 | Capability | Phase | Status at Phase 0 |
 | --- | --- | --- |
 | Frame format + CRC codec in `core_protocol`, with `0x29B1` check-vector tests on host CTest and QEMU Unity | 0.5 | Designed (this document); codec lands in Phase 0.5 |
-| `sim_coproc` model + fault-injection console | 0.5 | Planned |
-| FSM event mapping and double-dose guard | 2 | Designed (this document) |
+| `sim_coproc` model + fault-injection console | 0.5 | **Done** (Phase 2 drop): ACK(seq_acked) + STATUS_RESP completion model (busy on first poll, idle on next), crc/timeout(no-ack)/jam/empty faults |
+| FSM event mapping and double-dose guard | 2 | **Done** (Phase 2 drop): fsm service maps ACK/STATUS_RESP/JAM/EMPTY to core_fsm events; STATUS polling at 250 ms; journal write-ahead before DISPENSE_REQ; dedup by wall-clock dose key |
 | `DISPENSE_REQ` / `ACK` / `NACK` + retry engine, STATUS polling, `HEARTBEAT` supervision (`coproc_link`) | 3 | Designed (this document) |
 | Real co-processor integration + HIL jig (`MOTOR_CMD` diagnostics) | 3 | Designed (this document) |
 | Error counter exposed via `STATUS_RESP.reserved` | future | Reserved; not part of v1 behavior |

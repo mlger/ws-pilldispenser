@@ -3,4 +3,6 @@
 # `esp_console` in IDF v6 — tracked by the nightly canary leg).
 idf_component_register(SRCS "pd_main.c"
                        INCLUDE_DIRS "."
-                       REQUIRES pd_hal hal_real hal_sim console esp_app_format log)
+                       REQUIRES pd_hal hal_real hal_sim storage scheduler fsm
+                                core_fsm core_scheduler core_inventory core_protocol
+                                console esp_app_format log)

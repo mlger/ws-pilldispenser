@@ -28,10 +28,6 @@
 #include "hal_storage_ext.h"
 #include "hal_touch.h"
 
-void setUp(void) {}
-
-void tearDown(void) {}
-
 /* ---- display ---- */
 
 TEST_CASE("display dimensions match the 4.3B panel", "[hal_contract]") {

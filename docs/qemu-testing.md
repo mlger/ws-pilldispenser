@@ -122,7 +122,7 @@ def test_dose_due_across_eu_dst(dut: IdfDut) -> None:
 | Suite | Scope | Introduced |
 | --- | --- | --- |
 | unit | every component's Unity TEST_CASEs (scheduler, fsm, storage, comms, ota, coproc_link codec) driven through the test menu (`test_unit_qemu.py`) | Phase 0.5 skeleton; required from Phase 2 |
-| scenarios | dose due/missed/snoozed, double-dose guard, jam/empty from sim_coproc, power-loss mid-dispense (kill QEMU, restart with the same `qemu_flash.bin`, verify NVS journal replay), offline queue flush when the broker returns, DST spring/fall for EU and US timezones, leap day (`test_scenarios_qemu.py`) | Phase 2 (coproc faults complete in Phase 3) |
+| scenarios | dose due/missed, double-dose guard, jam/empty/no-ack from sim_coproc, power-loss mid-dispense (journal write-ahead + `esp_restart`, same-flash restart, NVS journal replay, scheduler dedup), DST spring/fall for EU and US timezones incl. fall-back overlap dedup, leap day, missed-dose catch-up (`test_scenarios_qemu.py`) | **Phase 2: green** (snoozed doses and the offline queue flush land in Phases 4+) |
 | mqtt | mosquitto on the runner with the test CA; firmware connects to `10.0.2.2:8883`; verifies TLS, LWT, retained state, reconnect backoff | Phase 4 |
 | ui | boots headless in CI; `sim fb dump` writes a PNG; tolerance-based golden image diff for each main screen | harness in Phase 0.5 (spike b); grows as screens land |
 | ota | host HTTP server serves the v+1 image; device updates, reboots, self-test fails on purpose, bootloader rolls back and the test expects the previous version marker; second case: self-test passes and `esp_ota_mark_app_valid_cancel_rollback` is called (`pytest_ota_rollback_qemu.py`) | mechanism in Phase 0.5 (spike d); suite required in Phase 6 |
@@ -130,16 +130,25 @@ def test_dose_due_across_eu_dst(dut: IdfDut) -> None:
 
 ## Scenario authoring
 
-`CONFIG_PD_SIM_CONSOLE` (depends on `PD_HAL_SIM=y`) enables the `sim ...` console commands; `CONFIG_PD_TEST_HOOKS` exposes the deterministic markers (`PD_READY`, `FSM: <state>`) that tests expect.
+`CONFIG_PD_SIM_CONSOLE` (depends on `PD_HAL_SIM=y`) enables the `sim ...` console commands; the scenario app additionally registers the `pd ...` operator console. `CONFIG_PD_TEST_HOOKS` exposes the deterministic markers that tests expect.
+
+Console timing matters under QEMU: commands written by the test before the REPL drains input are lost in the UART FIFO, so every scenario first waits for the `SIM: console ready` marker (logged after the REPL starts, past linenoise's terminal probe).
 
 | Command | Effect |
 | --- | --- |
 | `sim touch x y [down\|up]` | inject a touch event into sim_touch |
-| `sim time set <ISO8601>` | move the sim_rtc clock for DST and time-edge tests |
+| `sim time set <ISO8601>` | move the sim_rtc clock; a trailing `Z` (or `+00:00`) means UTC, otherwise the string is local wall time |
 | `sim tz <POSIX TZ>` | set the timezone, e.g. `CET-1CEST,M3.5.0,M10.5.0/3` |
 | `sim coproc auto-ack on\|off` | sim_coproc answers dispense frames automatically |
-| `sim coproc fault <type>` | inject ack / jam / empty / timeout / CRC faults |
+| `sim coproc fault <type>` | inject `crc` / `timeout` (`no-ack`) / `jam` / `empty` faults |
 | `sim fb dump` | dump the framebuffer to PNG for golden-image comparison |
+| `pd status` | FSM state, current dose key, journal state, slot table with next-due |
+| `pd slots set <id> <HH:MM> <once\|daily\|weekly> [MTWTFSS]` | upsert and persist a dose slot |
+| `pd dose trigger <slot>` | force a DOSE_DUE with the current wall-minute key |
+| `pd dose reboot <slot>` | power-loss emulation: journal write-ahead then `esp_restart()` mid-dispense |
+| `pd reset` / `pd retry` | operator FSM actions |
+
+Deterministic log markers (Phase 2): `PD_READY`, `SIM: console ready`, `SCHED: due|dedup slot=N key=K`, `FSM: <STATE> slot=N [reason=E]`, `FSM: guard slot=N key=K`, `EVENT: dose published slot=N key=K`, `ALARM: <STATE> slot=N reason=E`, `JOURNAL: replay|resolved ...`, `PWRTEST: journal pending, restarting now`.
 
 Scenario files under `firmware-main/test/fixtures/scenarios` script the same operations (touch sequences, time and timezone changes, coproc faults) so a whole user flow replays deterministically. The firmware can also load a scenario from LittleFS via `CONFIG_PD_SIM_SCENARIO_PATH`.
 

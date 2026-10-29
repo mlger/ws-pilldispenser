@@ -59,7 +59,7 @@ A PR touching `firmware-main` cannot merge unless lint, host-tests, all build le
 | --- | --- |
 | 0.5 | Hello-world app green through full ci-firmware-main including `pytest -m qemu` on esp32s3; host_test skeleton in place; spikes (a)-(f) have written reports; from here on every phase merges only through green CI |
 | 1 | Board bring-up via hal_real (LCD, GT911, CH422G, PCF85063, RS485) with matching hal_sim drivers; HAL contract tests green against SIM (QEMU) and REAL (HIL); HIL runner online |
-| 2 | Scheduler, FSM and offline storage: host CTest plus QEMU unit and scenario suites (DST edges, power-loss replay) are required checks |
+| 2 | Scheduler, FSM and offline storage: host CTest plus QEMU unit (61 cases) and scenario suites (DST edges EU/US incl. fall-back dedup, missed-dose catch-up, double-dose guard, jam/empty/no-ack faults, power-loss journal replay) are required checks — **Phase 2 drop: green** |
 | 3 | Shared core_protocol codec tests identical on both sides of the RS485 link (ci-coproc); sim_coproc fault injection green in QEMU; HIL jig tests pass |
 | 4 | Firestore rules emulator tests fully green; bridge integration vs mosquitto with the test CA; QEMU MQTT suite (TLS, LWT, retained state, reconnect backoff) required |
 | 5 | Android MVP: ci-android green (ktlint, detekt, lint, unit tests); signed releases only in release.yml |

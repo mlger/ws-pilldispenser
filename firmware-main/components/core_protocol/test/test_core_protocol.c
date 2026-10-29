@@ -7,10 +7,6 @@
 #include "core_protocol.h"
 #include "unity.h"
 
-void setUp(void) {}
-
-void tearDown(void) {}
-
 TEST_CASE("crc16 ccitt-false check value", "[core_protocol]") {
     TEST_ASSERT_EQUAL_HEX16(0x29B1, pd_crc16((const uint8_t *)"123456789", 9));
 }
