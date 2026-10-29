@@ -39,8 +39,8 @@ static void print_status(void) {
             }
         }
         ESP_LOGI(TAG, "PD: slot=%u %02u:%02u rec=%u en=%d next=%s", (unsigned)slots[i].id,
-                 (unsigned)slots[i].hour, (unsigned)slots[i].minute,
-                 (unsigned)slots[i].recurrence, (int)slots[i].enabled, iso);
+                 (unsigned)slots[i].hour, (unsigned)slots[i].minute, (unsigned)slots[i].recurrence,
+                 (int)slots[i].enabled, iso);
     }
 }
 

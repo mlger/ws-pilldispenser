@@ -27,10 +27,10 @@ extern "C" {
 /* Occurrences older than this (relative to the tick) are not caught up. */
 #define PD_SCHED_CATCHUP_MAX_S (3 * 60 * 60)
 /* At start, doses scheduled this many seconds before boot still fire. */
-#define PD_SCHED_BOOT_GRACE_S (30 * 60)
+#define PD_SCHED_BOOT_GRACE_S   (30 * 60)
 #define PD_SCHED_TICK_PERIOD_MS 1000
-#define PD_SCHED_TASK_STACK 4096
-#define PD_SCHED_DEFAULT_SLOTS 1
+#define PD_SCHED_TASK_STACK     4096
+#define PD_SCHED_DEFAULT_SLOTS  1
 
 typedef void (*pd_sched_on_due_fn_t)(uint8_t slot_id, uint64_t dose_key, void *user);
 

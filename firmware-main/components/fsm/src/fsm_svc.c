@@ -292,9 +292,8 @@ static void fsm_task(void *arg) {
         /* Cycle finished: flush a dose that was deferred while busy. */
         if (s_svc.pending_valid &&
             (s_svc.ctx.state == PD_FSM_IDLE || s_svc.ctx.state == PD_FSM_DISPENSED)) {
-            const fsm_q_item_t pending = {.ev = PD_EV_DOSE_DUE,
-                                          .slot = s_svc.pending_slot,
-                                          .key = s_svc.pending_key};
+            const fsm_q_item_t pending = {
+                .ev = PD_EV_DOSE_DUE, .slot = s_svc.pending_slot, .key = s_svc.pending_key};
             s_svc.pending_valid = false;
             ESP_LOGI(TAG, "FSM: flushing deferred dose slot=%u", (unsigned)pending.slot);
             (void)xQueueSend(s_svc.q, &pending, 0);
@@ -374,8 +373,8 @@ int pd_fsm_svc_dose_due(uint8_t slot_id, uint64_t dose_key) {
     const bool cycle_done = (s_svc.ctx.state == PD_FSM_DISPENSED) ||
                             (s_svc.ctx.state == PD_FSM_IDLE && s_svc.ctx.dispensed_flag);
     if (cycle_done && slot_id == s_svc.ctx.last_dispensed_slot && dose_key == s_svc.cur_key) {
-        ESP_LOGI(TAG, "FSM: guard slot=%u key=%llu (duplicate dose suppressed)",
-                 (unsigned)slot_id, (unsigned long long)dose_key);
+        ESP_LOGI(TAG, "FSM: guard slot=%u key=%llu (duplicate dose suppressed)", (unsigned)slot_id,
+                 (unsigned long long)dose_key);
         return 1;
     }
 

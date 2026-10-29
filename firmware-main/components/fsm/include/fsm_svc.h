@@ -24,10 +24,10 @@ extern "C" {
  *    co-processor must re-ACK duplicates without repeating the action.
  */
 
-#define PD_FSM_SVC_ACK_TIMEOUT_MS 500
+#define PD_FSM_SVC_ACK_TIMEOUT_MS      500
 #define PD_FSM_SVC_COMPLETE_TIMEOUT_MS 10000
-#define PD_FSM_SVC_STATUS_POLL_MS 250
-#define PD_FSM_SVC_TASK_STACK 4096
+#define PD_FSM_SVC_STATUS_POLL_MS      250
+#define PD_FSM_SVC_TASK_STACK          4096
 
 /* Start the service (idempotent). Replays a pending journal entry if present. */
 int pd_fsm_svc_start(void);

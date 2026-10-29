@@ -24,7 +24,7 @@ extern "C" {
  * itself).
  */
 
-#define PD_STORAGE_NS "pdstore"
+#define PD_STORAGE_NS        "pdstore"
 #define PD_STORAGE_MAX_SLOTS PD_SCHED_MAX_SLOTS
 
 typedef struct {

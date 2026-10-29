@@ -11,13 +11,13 @@ static const char *TAG = "pd_store";
 /* Journal keys are written in this order: the pending marker goes last, so a
  * torn write can only ever lose the PENDING flag (entry read as "none"), never
  * leave a half-written slot/key pair flagged as pending. */
-#define J_KEY_SLOT "j_slot"
-#define J_KEY_DOSE "j_dose"
-#define J_KEY_STATE "j_state"
+#define J_KEY_SLOT      "j_slot"
+#define J_KEY_DOSE      "j_dose"
+#define J_KEY_STATE     "j_state"
 #define J_STATE_PENDING 1u
 
-#define K_SLOTS "slots"
-#define K_SLOTS_N "slots_n"
+#define K_SLOTS    "slots"
+#define K_SLOTS_N  "slots_n"
 #define K_LASTKEYS "lastkeys"
 
 static nvs_handle_t s_handle;
