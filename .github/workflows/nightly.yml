@@ -1,8 +1,8 @@
-# nightly — canary, soak, SBOM drift (spec Section B).
+# nightly — canary, soak, SBOM drift (spec Section B, C7).
 #
 # Jobs:
 #  - canary: ESP-IDF v6.1-rc1 build (non-blocking; migration when green).
-#  - idf-dep-drift: component-manager dry-run; opens an issue on drift.
+#  - idf-dep-drift: regenerate+diff dependencies.lock; opens an issue on drift.
 #  - soak: long QEMU scenario soak (Phase 2+, vars.ENABLE_NIGHTLY_SOAK).
 #  - sbom-check: SBOM vs NVD check (Phase 6+, vars.ENABLE_SBOM_CHECK).
 name: nightly
@@ -50,9 +50,15 @@ jobs:
           . "$IDF_PATH/export.sh"
           cd firmware-main
           cp dependencies.lock /tmp/dependencies.lock 2>/dev/null || echo "" > /tmp/dependencies.lock
-          # VERIFY: `idf.py update-dependencies` re-resolves managed components;
-          # confirm the dry-run flag name for the pinned component-manager version.
-          idf.py reconfigure || true
+          # Regenerate with the project's canonical config chain (same as the
+          # build jobs). A bare reconfigure would default to target esp32 and
+          # rewrite dependencies.lock with the wrong target, reporting drift
+          # every night (false positive, see #10). `update-dependencies` has
+          # no dry-run flag in the pinned component-manager version, so the
+          # dry run is implemented as regenerate-then-diff; the flag below is
+          # only needed on reconfigure (update-dependencies reuses its state).
+          defaults="sdkconfig.defaults;sdkconfig.defaults.esp32s3"
+          idf.py -DSDKCONFIG_DEFAULTS="$defaults" reconfigure || true
           idf.py update-dependencies || true
           if ! diff -q /tmp/dependencies.lock dependencies.lock >/dev/null 2>&1; then
             echo "DRIFT_DETECTED=1" >> "$GITHUB_ENV"
