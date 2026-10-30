@@ -7,5 +7,5 @@
     "MD025": { "front_matter_title": "" }
   },
   "globs": ["**/*.md"],
-  "ignores": ["**/node_modules/**", "**/managed_components/**"]
+  "ignores": ["**/node_modules/**", "**/managed_components/**", "**/CHANGELOG.md"]
 }

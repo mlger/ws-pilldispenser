@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1](https://github.com/mlger/ws-pilldispenser/compare/pd-main-v0.2.0...pd-main-v0.2.1) (2026-10-30)
+
+### Bug Fixes
+
+* **ci:** Fail nightly drift check on solve errors; document lock regeneration ([#13](https://github.com/mlger/ws-pilldispenser/issues/13)) ([2e0a9db](https://github.com/mlger/ws-pilldispenser/commit/2e0a9db13ab06211d5434dd9e4d826d2cb60469d))
+
 ## [0.2.0](https://github.com/mlger/ws-pilldispenser/compare/pd-main-v0.1.0...pd-main-v0.2.0) (2026-10-29)
 
 ### Features
