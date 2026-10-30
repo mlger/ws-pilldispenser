@@ -1,6 +1,6 @@
 {
   "name": "@pd/cloud",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "PillDispenser cloud: Firebase functions, bridge worker, Firestore rules (Phase 4).",
   "scripts": {
