@@ -108,6 +108,19 @@ Verified against GitHub; Dependabot keeps them current.
   (target esp32s3). The pinned component-manager version has no dry-run
   flag, so the dry run is implemented as regenerate-then-diff in the
   ephemeral workspace; drift opens an issue and never blocks merges.
+  A failed solve (or a missing lock after regeneration) fails the check
+  itself and opens a `[nightly] drift check failed to run` issue, so an
+  infrastructure outage is never mistaken for "no drift".
+- Regenerating the baseline (escape hatch): after an **intentional**
+  dependency or IDF version change, refresh the tracked lock and commit it
+  in the same PR so the nightly diffs clean again:
+
+  ```sh
+  cd firmware-main
+  idf.py -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3" reconfigure
+  idf.py update-dependencies
+  git add dependencies.lock   # commit with your change
+  ```
 
 ## 6. Branch protection and required checks
 
