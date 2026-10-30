@@ -59,10 +59,30 @@ jobs:
           # only needed on reconfigure (update-dependencies reuses its state).
           defaults="sdkconfig.defaults;sdkconfig.defaults.esp32s3"
           idf.py -DSDKCONFIG_DEFAULTS="$defaults" reconfigure || true
-          idf.py update-dependencies || true
+          # No `|| true` here: a failed solve (registry/network outage) must
+          # fail the step — otherwise the diff below silently passes against
+          # the untouched baseline and the nightly check no-ops exactly when
+          # it is needed most (post-merge audit of #11, finding 1).
+          idf.py update-dependencies
+          # Guard against a re-solve that deleted/failed to write the lock:
+          # treat a missing lock as a check failure, never as "no drift".
+          [ -f dependencies.lock ] || {
+            echo "::error::dependencies.lock missing after update-dependencies"
+            exit 1
+          }
           if ! diff -q /tmp/dependencies.lock dependencies.lock >/dev/null 2>&1; then
             echo "DRIFT_DETECTED=1" >> "$GITHUB_ENV"
           fi
+      - name: Open issue on check failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues" \
+            -d '{"title":"[nightly] drift check failed to run","body":"The nightly drift-check infrastructure failed (update-dependencies or the lock guard), so **no drift verdict was produced** tonight. This is a check failure, not component drift — see the failing run logs.","labels":["area/ci"]}'
       - name: Open issue on drift
         if: env.DRIFT_DETECTED == '1'
         env:

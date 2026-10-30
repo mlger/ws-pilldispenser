@@ -2,13 +2,11 @@
 
 ## [0.2.0](https://github.com/mlger/ws-pilldispenser/compare/pd-main-v0.1.0...pd-main-v0.2.0) (2026-10-29)
 
-
 ### Features
 
 * **firmware:** Phase 1 board bring-up + unblock all CI build legs ([#8](https://github.com/mlger/ws-pilldispenser/issues/8)) ([f5bab8a](https://github.com/mlger/ws-pilldispenser/commit/f5bab8a764b31e1f7e19650f014d583899299bd9))
 * **firmware:** Phase 2 scheduler, FSM and offline storage ([4f1ba08](https://github.com/mlger/ws-pilldispenser/commit/4f1ba08f605af5a3d15acc2de010b693b7061169))
 * **firmware:** Phase 2 scheduler, FSM and offline storage ([#9](https://github.com/mlger/ws-pilldispenser/issues/9)) ([c7a0a50](https://github.com/mlger/ws-pilldispenser/commit/c7a0a501500c67446e1dbe4af10cbf13549f3dd8))
-
 
 ### Bug Fixes
 
